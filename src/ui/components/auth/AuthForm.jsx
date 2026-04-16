@@ -18,7 +18,7 @@ export default function AuthForm({ mode, onSubmit, onCancel }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFbf7] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center p-6">
       <div className="bg-white p-8 rounded-3xl shadow-xl max-w-sm w-full border border-orange-100">
         <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
           {mode === 'login' ? 'Bienvenido de nuevo' : 'Comienza tu legado'}

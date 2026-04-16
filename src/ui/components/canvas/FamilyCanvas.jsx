@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Move } from 'lucide-react';
 import { useCanvas } from '../../../application/hooks/useCanvas';
 import CanvasHUD from './CanvasHUD';
@@ -33,13 +33,15 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     zoomOut,
   } = useCanvas();
 
-  // Initialize view
-  useState(() => {
-    setTimeout(() => {
-      if (nodes.length > 0) fitToScreen(nodes);
-      else setTransform({ x: window.innerWidth / 2, y: window.innerHeight / 2, k: 1 });
-    }, 100);
-  });
+  // Initialize view on mount
+  useEffect(() => {
+    if (nodes.length > 0) {
+      const timer = setTimeout(() => fitToScreen(nodes), 100);
+      return () => clearTimeout(timer);
+    } else {
+      setTransform({ x: window.innerWidth / 2, y: window.innerHeight / 2, k: 1 });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveAndUpdate = useCallback((newNodes, newEdges) => {
     onSave(newNodes, newEdges);
