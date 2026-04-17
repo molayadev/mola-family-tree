@@ -1,5 +1,8 @@
 import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../../domain/config/constants';
 
+/** Vertical offset so parent-child lines start/end at the node circle edge */
+const NODE_RADIUS = 32;
+
 export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
   if (!fromNode || !toNode) return null;
 
@@ -21,7 +24,7 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
   } else {
     // Parent→child lines: orthogonal step path (down, across, down)
     const midY = (fromNode.y + toNode.y) / 2;
-    d = `M ${fromNode.x} ${fromNode.y + 32} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - 32}`;
+    d = `M ${fromNode.x} ${fromNode.y + NODE_RADIUS} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - NODE_RADIUS}`;
     strokeColor = '#94A3B8';
     strokeWidth = 1;
     strokeDash = '0';
