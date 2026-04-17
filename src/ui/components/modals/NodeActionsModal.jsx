@@ -424,6 +424,8 @@ export default function NodeActionsModal({
                       <input
                         type="number"
                         step="any"
+                        min="-90"
+                        max="90"
                         className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
                         value={formData.birthLatitude ?? ''}
                         onChange={e => setFormData({ ...formData, birthLatitude: e.target.value })}
@@ -435,6 +437,8 @@ export default function NodeActionsModal({
                       <input
                         type="number"
                         step="any"
+                        min="-180"
+                        max="180"
                         className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
                         value={formData.birthLongitude ?? ''}
                         onChange={e => setFormData({ ...formData, birthLongitude: e.target.value })}

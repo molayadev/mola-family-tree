@@ -87,8 +87,8 @@ export default function useZodiac() {
 
     const hasDate = Boolean(birthDate);
     const hasTime = Boolean(birthTime);
-    const hasLocation = birthLatitude !== '' && birthLatitude != null
-      && birthLongitude !== '' && birthLongitude != null;
+    const hasLocation = birthLatitude !== '' && birthLatitude !== undefined && birthLatitude !== null
+      && birthLongitude !== '' && birthLongitude !== undefined && birthLongitude !== null;
 
     // Sun sign – needs date
     if (hasDate) {
