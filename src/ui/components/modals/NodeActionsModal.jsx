@@ -14,7 +14,8 @@ import {
   Waypoints,
 } from 'lucide-react';
 import Button from '../common/Button';
-import { COLORS, PARTNER_LABELS, PARENT_LABELS, isPartnerEdgeType, resolveEdgeLabel, PARTNER_EDGE_TYPES } from '../../../domain/config/constants';
+import { COLORS, PARTNER_LABELS, PARENT_LABELS, TWIN_TYPES, isPartnerEdgeType, resolveEdgeLabel } from '../../../domain/config/constants';
+import { formatNodeDates } from '../../../domain/utils/dateUtils';
 
 export default function NodeActionsModal({
   node,
@@ -124,11 +125,10 @@ export default function NodeActionsModal({
           </div>
           <div>
             <span className="font-bold text-gray-800">{node.data.firstName} {node.data.lastName}</span>
-            {node.data.birthYear && (
-              <span className="text-xs text-gray-400 ml-2">
-                {node.data.deathYear ? `${node.data.birthYear} - ${node.data.deathYear}` : `* ${node.data.birthYear}`}
-              </span>
-            )}
+            {(() => {
+              const dateText = formatNodeDates(node.data);
+              return dateText ? <span className="text-xs text-gray-400 ml-2">{node.data.deathDate ? dateText : `* ${dateText}`}</span> : null;
+            })()}
           </div>
         </div>
 
@@ -339,25 +339,63 @@ export default function NodeActionsModal({
                   </div>
                 </div>
 
+                {/* Birth date & time */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nacimiento (Año)</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Nacimiento</label>
                     <input
-                      type="number"
-                      className="w-full p-2 rounded-lg border border-orange-200 outline-none"
-                      value={formData.birthYear || ''}
-                      onChange={e => setFormData({ ...formData, birthYear: e.target.value })}
-                      placeholder="Ej. 1990"
+                      type="date"
+                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+                      value={formData.birthDate || ''}
+                      onChange={e => setFormData({ ...formData, birthDate: e.target.value })}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fallecimiento</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hora de Nacimiento</label>
+                    <input
+                      type="time"
+                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+                      value={formData.birthTime || ''}
+                      onChange={e => setFormData({ ...formData, birthTime: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Death date */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Fallecimiento</label>
+                  <input
+                    type="date"
+                    className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+                    value={formData.deathDate || ''}
+                    onChange={e => setFormData({ ...formData, deathDate: e.target.value })}
+                  />
+                </div>
+
+                {/* Twin / multiple birth */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Gemelo / Mellizo</label>
+                    <select
+                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
+                      value={formData.twinType || ''}
+                      onChange={e => setFormData({ ...formData, twinType: e.target.value })}
+                    >
+                      {TWIN_TYPES.map(t => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Orden de Nacimiento</label>
                     <input
                       type="number"
-                      className="w-full p-2 rounded-lg border border-orange-200 outline-none"
-                      value={formData.deathYear || ''}
-                      onChange={e => setFormData({ ...formData, deathYear: e.target.value })}
-                      placeholder="Ej. 2020"
+                      min="1"
+                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+                      value={formData.birthOrder || ''}
+                      onChange={e => setFormData({ ...formData, birthOrder: e.target.value })}
+                      placeholder="Ej. 1, 2..."
+                      disabled={!formData.twinType}
                     />
                   </div>
                 </div>

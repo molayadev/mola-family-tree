@@ -1,3 +1,5 @@
+import { ExportImportService } from './ExportImportService';
+
 export class AuthService {
   constructor(storageAdapter) {
     this.storage = storageAdapter;
@@ -10,10 +12,13 @@ export class AuthService {
   login(username, password) {
     const user = this.storage.getUserData(username);
     if (user && user.password === password) {
+      // Migrate legacy birthYear/deathYear data on load
+      const nodes = (user.treeData?.nodes || []).map(ExportImportService.migrateNodeData);
+      const edges = user.treeData?.edges || [];
       return {
         success: true,
         user: { username },
-        treeData: user.treeData || { nodes: [], edges: [] },
+        treeData: { nodes, edges },
       };
     }
     return { success: false, error: 'Credenciales inválidas' };
