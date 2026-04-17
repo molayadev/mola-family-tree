@@ -43,6 +43,8 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
           onClick={toggleMenu}
           className="w-12 h-12 bg-orange-500 hover:bg-orange-600 active:scale-95 rounded-full shadow-lg flex items-center justify-center transition-all"
           title="Menú"
+          aria-expanded={menuOpen}
+          aria-label="Menú"
         >
           {menuOpen
             ? <X size={22} className="text-white" />
@@ -52,7 +54,7 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
         {menuOpen && (
           <>
             {/* Backdrop to close menu */}
-            <div className="fixed inset-0 z-[-1]" onClick={closeMenu} />
+            <div className="fixed inset-0 z-[-1]" role="presentation" aria-hidden="true" onClick={closeMenu} />
 
             <div className="absolute top-14 left-0 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 p-2 min-w-[200px] animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="px-3 py-2 border-b border-gray-100 mb-1">

@@ -5,7 +5,10 @@ const GENDER_COLORS = {
 };
 
 function buildEdgePath(edge, fromNode, toNode) {
-  if (!fromNode || !toNode) return '';
+  if (!fromNode || !toNode) {
+    console.warn(`SnapshotService: missing node for edge ${edge.id} (from: ${edge.from}, to: ${edge.to})`);
+    return '';
+  }
   const isPartner = edge.type === 'spouse' || edge.type === 'ex_spouse' || edge.type === 'partner';
   if (isPartner) {
     return `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
@@ -152,7 +155,10 @@ export async function printTreeSnapshot(nodes, edges) {
   const dataUrl = canvas.toDataURL('image/png');
 
   const printWindow = window.open('', '_blank');
-  if (!printWindow) return;
+  if (!printWindow) {
+    alert('No se pudo abrir la ventana de impresión. Por favor, permite las ventanas emergentes para este sitio.');
+    return;
+  }
 
   printWindow.document.write(`<!DOCTYPE html>
 <html>
