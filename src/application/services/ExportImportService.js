@@ -3,6 +3,24 @@ export class ExportImportService {
     this.storage = storageAdapter;
   }
 
+  parseAndImportJson(rawJson) {
+    try {
+      const json = JSON.parse(rawJson);
+      if (!json.user || !json.nodes || !json.edges) {
+        throw new Error('El archivo no tiene el formato correcto.');
+      }
+
+      const migratedNodes = json.nodes.map(ExportImportService.migrateNodeData);
+      this.storage.importUserData(json.user, json.password, migratedNodes, json.edges);
+      return json.user;
+    } catch (error) {
+      if (error.message === 'El archivo no tiene el formato correcto.') {
+        throw error;
+      }
+      throw new Error('Error al leer el archivo JSON.');
+    }
+  }
+
   exportTree(username, nodes, edges) {
     const userData = this.storage.getUserData(username);
     const userPass = userData?.password || '';
@@ -71,22 +89,17 @@ export class ExportImportService {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const json = JSON.parse(e.target.result);
-          if (!json.user || !json.nodes || !json.edges) {
-            reject(new Error('El archivo no tiene el formato correcto.'));
-            return;
-          }
-
-          // Migrate legacy birthYear / deathYear data
-          const migratedNodes = json.nodes.map(ExportImportService.migrateNodeData);
-
-          this.storage.importUserData(json.user, json.password, migratedNodes, json.edges);
-          resolve(json.user);
-        } catch {
-          reject(new Error('Error al leer el archivo JSON.'));
+          const importedUser = this.parseAndImportJson(e.target.result);
+          resolve(importedUser);
+        } catch (error) {
+          reject(error);
         }
       };
       reader.readAsText(file);
     });
+  }
+
+  importTreeFromText(rawJson) {
+    return Promise.resolve(this.parseAndImportJson(rawJson));
   }
 }

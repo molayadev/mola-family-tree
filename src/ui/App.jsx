@@ -69,6 +69,16 @@ export default function App() {
     }
   }, [exportService, refreshHasUsers]);
 
+  const handleImportFromText = useCallback(async (rawJson) => {
+    try {
+      const importedUser = await exportService.importTreeFromText(rawJson);
+      refreshHasUsers();
+      alert(`¡Árbol de ${importedUser} importado con éxito! Ahora puedes iniciar sesión.`);
+    } catch (err) {
+      alert(err.message);
+    }
+  }, [exportService, refreshHasUsers]);
+
   const handleSave = useCallback((newNodes, newEdges) => {
     setNodes(newNodes);
     setEdges(newEdges);
@@ -84,13 +94,14 @@ export default function App() {
 
   if (view === 'landing') {
     return (
-      <LandingPage
-        onLogin={() => setView('login')}
-        onRegister={() => setView('register')}
-        onImport={handleImport}
-        hasLocalUsers={hasLocalUsersFlag}
-      />
-    );
+        <LandingPage
+          onLogin={() => setView('login')}
+          onRegister={() => setView('register')}
+          onImport={handleImport}
+          onImportFromText={handleImportFromText}
+          hasLocalUsers={hasLocalUsersFlag}
+        />
+      );
   }
 
   if (view === 'login') {

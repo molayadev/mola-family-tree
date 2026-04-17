@@ -1,9 +1,13 @@
-import { User, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { User, Upload, ClipboardPaste } from 'lucide-react';
 import Button from '../common/Button';
 
 const appVersion = __APP_VERSION__;
 
-export default function LandingPage({ onLogin, onRegister, onImport, hasLocalUsers }) {
+export default function LandingPage({ onLogin, onRegister, onImport, onImportFromText, hasLocalUsers }) {
+  const [showPasteArea, setShowPasteArea] = useState(false);
+  const [pastedJson, setPastedJson] = useState('');
+  const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -11,6 +15,14 @@ export default function LandingPage({ onLogin, onRegister, onImport, hasLocalUse
       onImport(file);
     }
     e.target.value = '';
+  };
+
+  const handlePastedImport = () => {
+    if (!pastedJson.trim()) {
+      alert('Pega un JSON antes de importar.');
+      return;
+    }
+    onImportFromText(pastedJson);
   };
 
   return (
@@ -39,10 +51,34 @@ export default function LandingPage({ onLogin, onRegister, onImport, hasLocalUse
           </Button>
 
           <div className="relative w-full pt-4 border-t border-gray-200 mt-4">
-            <label className="px-6 py-3 rounded-full font-semibold transition-all duration-200 transform active:scale-95 flex items-center justify-center gap-2 bg-transparent text-black hover:bg-gray-100 border border-gray-200 hover:border-gray-300 w-full text-sm cursor-pointer">
-              <input type="file" accept=".json,application/json" className="absolute w-0 h-0 opacity-0 overflow-hidden" onChange={handleFileChange} aria-label="Seleccionar archivo JSON de respaldo para importar" />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-6 py-3 rounded-full font-semibold transition-all duration-200 transform active:scale-95 flex items-center justify-center gap-2 bg-transparent text-black hover:bg-gray-100 border border-gray-200 hover:border-gray-300 w-full text-sm cursor-pointer"
+            >
               <Upload size={16} /> Importar Respaldo (JSON)
-            </label>
+            </button>
+            <input ref={fileInputRef} type="file" className="sr-only" onChange={handleFileChange} aria-label="Seleccionar archivo JSON de respaldo para importar" />
+            <button
+              type="button"
+              onClick={() => setShowPasteArea((prev) => !prev)}
+              className="mt-3 px-6 py-3 rounded-full font-semibold transition-all duration-200 transform active:scale-95 flex items-center justify-center gap-2 bg-transparent text-black hover:bg-gray-100 border border-gray-200 hover:border-gray-300 w-full text-sm cursor-pointer"
+            >
+              <ClipboardPaste size={16} /> {showPasteArea ? 'Ocultar pegar JSON' : 'Pegar JSON'}
+            </button>
+            {showPasteArea && (
+              <div className="mt-3 space-y-2">
+                <textarea
+                  value={pastedJson}
+                  onChange={(e) => setPastedJson(e.target.value)}
+                  placeholder="Pega aquí el contenido JSON del respaldo"
+                  className="w-full min-h-36 rounded-2xl border border-gray-200 bg-white/90 p-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+                <Button onClick={handlePastedImport} variant="secondary" className="w-full">
+                  Importar JSON pegado
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
