@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import { User, Upload } from 'lucide-react';
 import Button from '../common/Button';
 
+const appVersion = __APP_VERSION__;
+
 export default function LandingPage({ onLogin, onRegister, onImport, hasLocalUsers }) {
   const fileInputRef = useRef(null);
 
@@ -51,6 +53,8 @@ export default function LandingPage({ onLogin, onRegister, onImport, hasLocalUse
             Los datos se guardarán localmente en este dispositivo.
           </p>
         )}
+
+        <p className="mt-8 text-xs text-gray-300">v{appVersion}</p>
       </div>
     </div>
   );
