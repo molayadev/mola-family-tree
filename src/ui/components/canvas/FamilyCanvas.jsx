@@ -3,17 +3,14 @@ import { Move } from 'lucide-react';
 import { useCanvas } from '../../../application/hooks/useCanvas';
 import CanvasHUD from './CanvasHUD';
 import ZoomControls from './ZoomControls';
-import RadialMenu from './RadialMenu';
 import FamilyNode from './FamilyNode';
 import FamilyEdge from './FamilyEdge';
-import EditModal from '../modals/EditModal';
-import LinksModal from '../modals/LinksModal';
+import NodeActionsModal from '../modals/NodeActionsModal';
 import PartnerSelectionModal from '../modals/PartnerSelectionModal';
 
 export default function FamilyCanvas({ username, nodes, edges, treeService, exportService, onSave, onLogout }) {
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [linksModalState, setLinksModalState] = useState({ isOpen: false, nodeId: null, expandedEdgeId: null });
+  const [actionsModal, setActionsModal] = useState({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
+  const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
 
   const {
@@ -47,9 +44,18 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     onSave(newNodes, newEdges);
   }, [onSave]);
 
-  const handleLineClick = useCallback((edgeId, sourceNodeId) => {
-    setLinksModalState({ isOpen: true, nodeId: sourceNodeId, expandedEdgeId: edgeId });
+  const openActionsModal = useCallback((nodeId, initialTab = null, expandedEdgeId = null) => {
+    setActionsModal({ isOpen: true, nodeId, initialTab, expandedEdgeId });
+    setActionsModalKey(k => k + 1);
   }, []);
+
+  const closeActionsModal = useCallback(() => {
+    setActionsModal({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
+  }, []);
+
+  const handleLineClick = useCallback((edgeId, sourceNodeId) => {
+    openActionsModal(sourceNodeId, 'links', edgeId);
+  }, [openActionsModal]);
 
   const confirmAddChild = useCallback((sourceId, partnerId) => {
     const result = treeService.addChild(nodes, edges, sourceId, partnerId);
@@ -59,58 +65,54 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   }, [nodes, edges, treeService, saveAndUpdate, fitToScreen]);
 
   const handleNodeAction = useCallback((action) => {
-    if (!selectedNodeId) return;
+    const nodeId = actionsModal.nodeId;
+    if (!nodeId) return;
 
-    const sourceNode = nodes.find(n => n.id === selectedNodeId);
+    const sourceNode = nodes.find(n => n.id === nodeId);
 
     if (action === 'add_parents') {
       const result = treeService.addParents(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
+      closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'add_child') {
-      const partners = treeService.getPartners(edges, selectedNodeId);
+      const partners = treeService.getPartners(edges, nodeId);
       if (partners.length > 0) {
-        setPartnerSelection({ sourceId: selectedNodeId, partners });
-        setSelectedNodeId(null);
+        setPartnerSelection({ sourceId: nodeId, partners });
+        closeActionsModal();
         return;
       }
-      confirmAddChild(selectedNodeId, null);
+      confirmAddChild(nodeId, null);
+      closeActionsModal();
       return;
     } else if (action === 'add_spouse') {
       const result = treeService.addSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
+      closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'add_ex_spouse') {
       const result = treeService.addExSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
+      closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
-    } else if (action === 'manage_links') {
-      setLinksModalState({ isOpen: true, nodeId: selectedNodeId, expandedEdgeId: null });
-      setSelectedNodeId(null);
-      return;
-    } else if (action === 'edit') {
-      setModalOpen(true);
-      return;
     } else if (action === 'delete') {
-      if (window.confirm('¿Eliminar a esta persona y sus conexiones?')) {
-        const result = treeService.deleteNode(nodes, edges, selectedNodeId);
-        saveAndUpdate(result.nodes, result.edges);
-        setSelectedNodeId(null);
-        setTimeout(() => fitToScreen(result.nodes), 100);
-      }
+      const result = treeService.deleteNode(nodes, edges, nodeId);
+      saveAndUpdate(result.nodes, result.edges);
+      closeActionsModal();
+      setTimeout(() => fitToScreen(result.nodes), 100);
     }
-  }, [selectedNodeId, nodes, edges, treeService, saveAndUpdate, fitToScreen, confirmAddChild]);
+  }, [actionsModal.nodeId, nodes, edges, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal]);
 
   const handleUpdateNode = useCallback((nodeId, newData) => {
     const updatedNodes = treeService.updateNode(nodes, nodeId, newData);
     saveAndUpdate(updatedNodes, edges);
-    setModalOpen(false);
-  }, [nodes, edges, treeService, saveAndUpdate]);
+    closeActionsModal();
+  }, [nodes, edges, treeService, saveAndUpdate, closeActionsModal]);
 
   const handleUpdateLink = useCallback((edgeId, updates) => {
-    const result = treeService.updateLink(nodes, edges, edgeId, updates, linksModalState.nodeId);
+    const result = treeService.updateLink(nodes, edges, edgeId, updates, actionsModal.nodeId);
     saveAndUpdate(result.nodes, result.edges);
-  }, [nodes, edges, treeService, linksModalState.nodeId, saveAndUpdate]);
+  }, [nodes, edges, treeService, actionsModal.nodeId, saveAndUpdate]);
 
   const handleDeleteLink = useCallback((edgeId) => {
     if (window.confirm('¿Seguro que deseas eliminar este vínculo? (La persona seguirá existiendo en el árbol)')) {
@@ -123,30 +125,24 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     exportService.exportTree(username, nodes, edges);
   }, [username, nodes, edges, exportService]);
 
-  const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId), [nodes, selectedNodeId]);
-  const menuPos = selectedNode ? {
-    x: selectedNode.x * transform.k + transform.x,
-    y: selectedNode.y * transform.k + transform.y,
-  } : null;
+  const actionsModalNode = useMemo(() => nodes.find(n => n.id === actionsModal.nodeId), [nodes, actionsModal.nodeId]);
 
   return (
     <div
       className="h-screen w-screen bg-[#F3F0EB] overflow-hidden relative font-sans text-gray-700 selection:bg-orange-200 touch-none"
       ref={canvasRef}
       onMouseDown={(e) => {
-        const r = handleMouseDown(e, transform);
-        if (r.clearSelection) setSelectedNodeId(null);
+        handleMouseDown(e, transform);
       }}
       onMouseMove={(e) => handleMouseMove(e, nodes, (n) => saveAndUpdate(n, edges), transform)}
-      onMouseUp={() => handleMouseUp(() => saveAndUpdate(nodes, edges), setSelectedNodeId)}
-      onMouseLeave={() => handleMouseUp(() => saveAndUpdate(nodes, edges), setSelectedNodeId)}
+      onMouseUp={() => handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal)}
+      onMouseLeave={() => handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal)}
       onWheel={handleWheel}
       onTouchStart={(e) => {
-        const r = handleTouchStart(e, transform);
-        if (r.clearSelection) setSelectedNodeId(null);
+        handleTouchStart(e, transform);
       }}
       onTouchMove={(e) => handleTouchMove(e, nodes, (n) => saveAndUpdate(n, edges), transform)}
-      onTouchEnd={() => handleTouchEnd(() => saveAndUpdate(nodes, edges), setSelectedNodeId)}
+      onTouchEnd={() => handleTouchEnd(() => saveAndUpdate(nodes, edges), openActionsModal)}
       style={{ touchAction: 'none' }}
     >
       <CanvasHUD
@@ -160,37 +156,26 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
 
       <ZoomControls onZoomIn={zoomIn} onZoomOut={zoomOut} />
 
-      {selectedNodeId && menuPos && (
-        <RadialMenu
-          x={menuPos.x}
-          y={menuPos.y}
-          zoom={transform.k}
-          onClose={() => setSelectedNodeId(null)}
-          onAction={handleNodeAction}
-        />
-      )}
+      <NodeActionsModal
+        key={actionsModalKey}
+        node={actionsModalNode}
+        isOpen={actionsModal.isOpen}
+        onClose={closeActionsModal}
+        onAction={handleNodeAction}
+        onSaveEdit={handleUpdateNode}
+        nodes={nodes}
+        edges={edges}
+        onUpdateLink={handleUpdateLink}
+        onDeleteLink={handleDeleteLink}
+        initialTab={actionsModal.initialTab}
+        initialExpandedEdgeId={actionsModal.expandedEdgeId}
+      />
 
       <PartnerSelectionModal
         selection={partnerSelection}
         nodes={nodes}
         onClose={() => setPartnerSelection(null)}
         onSelect={(partnerId) => confirmAddChild(partnerSelection.sourceId, partnerId)}
-      />
-
-      <LinksModal
-        state={linksModalState}
-        onClose={() => setLinksModalState({ isOpen: false, nodeId: null, expandedEdgeId: null })}
-        nodes={nodes}
-        edges={edges}
-        onUpdateLink={handleUpdateLink}
-        onDeleteLink={handleDeleteLink}
-      />
-
-      <EditModal
-        node={nodes.find(n => n.id === selectedNodeId)}
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSave={handleUpdateNode}
       />
 
       <svg className="w-full h-full pointer-events-none">
@@ -213,7 +198,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
             <FamilyNode
               key={node.id}
               node={node}
-              isSelected={selectedNodeId === node.id}
+              isSelected={actionsModal.nodeId === node.id}
               onPointerDown={(e, id) => handleNodePointerDown(e, id, nodes)}
             />
           ))}
