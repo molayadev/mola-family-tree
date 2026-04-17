@@ -110,8 +110,9 @@ export default function EditModal({ node, isOpen, onClose, onSave }) {
                 className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
                 value={formData.birthOrder || ''}
                 onChange={e => setFormData({ ...formData, birthOrder: e.target.value })}
-                placeholder="Ej. 1, 2..."
+                placeholder={formData.twinType ? 'Ej. 1, 2...' : 'Selecciona tipo primero'}
                 disabled={!formData.twinType}
+                title={!formData.twinType ? 'Selecciona un tipo de gemelo/mellizo primero' : ''}
               />
             </div>
           </div>

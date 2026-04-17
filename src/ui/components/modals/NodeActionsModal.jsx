@@ -125,10 +125,11 @@ export default function NodeActionsModal({
           </div>
           <div>
             <span className="font-bold text-gray-800">{node.data.firstName} {node.data.lastName}</span>
-            {(() => {
-              const dateText = formatNodeDates(node.data);
-              return dateText ? <span className="text-xs text-gray-400 ml-2">{node.data.deathDate ? dateText : `* ${dateText}`}</span> : null;
-            })()}
+            {formatNodeDates(node.data) && (
+              <span className="text-xs text-gray-400 ml-2">
+                {node.data.deathDate ? formatNodeDates(node.data) : `* ${formatNodeDates(node.data)}`}
+              </span>
+            )}
           </div>
         </div>
 
@@ -394,8 +395,9 @@ export default function NodeActionsModal({
                       className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
                       value={formData.birthOrder || ''}
                       onChange={e => setFormData({ ...formData, birthOrder: e.target.value })}
-                      placeholder="Ej. 1, 2..."
+                      placeholder={formData.twinType ? 'Ej. 1, 2...' : 'Selecciona tipo primero'}
                       disabled={!formData.twinType}
+                      title={!formData.twinType ? 'Selecciona un tipo de gemelo/mellizo primero' : ''}
                     />
                   </div>
                 </div>
