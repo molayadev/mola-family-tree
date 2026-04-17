@@ -239,7 +239,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   }, [username, nodes, edges]);
 
   const handleOrganize = useCallback(() => {
-    setCollapsedFamilies(new Set()); // expand all before reorganizing
+    setCollapsedFamilies(new Set()); // expand all before reorganizing layout
     const organizedNodes = treeService.organizeByLevels(nodes, edges);
     saveAndUpdate(organizedNodes, edges);
     setTimeout(() => fitToScreen(organizedNodes), 100);

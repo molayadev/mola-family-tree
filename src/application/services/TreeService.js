@@ -211,7 +211,7 @@ export class TreeService {
    *  2. Build a layout tree where each node is a partner-group and edges
    *     go from parent-groups to child-groups.
    *  3. Bottom-up: compute the width each subtree needs.
-   *  4. Top-down: assign (x, y) so that every parent-group is centred
+   *  4. Top-down: assign (x, y) so that every parent-group is centered
    *     directly above its children.
    *
    * Returns a new nodes array with updated x/y positions.
@@ -302,7 +302,7 @@ export class TreeService {
       }
     });
 
-    // ── 4. Compute subtree widths (bottom-up, memoised) ────────────────
+    // ── 4. Compute subtree widths (bottom-up, memoized) ────────────────
     const widthCache = {};
 
     function subtreeWidth(gr) {
@@ -335,14 +335,14 @@ export class TreeService {
     function positionGroup(gr, centerX, level) {
       const members = groupMembers[gr] || [];
 
-      // Centre the partner group at centerX
+      // Center the partner group at centerX
       const totalMemberW = (members.length - 1) * PARTNER_GAP;
       const startX = centerX - totalMemberW / 2;
       members.forEach((mid, i) => {
         posMap[mid] = { x: startX + i * PARTNER_GAP, y: level * LEVEL_H };
       });
 
-      // Position child groups below, centred under the parent group
+      // Position child groups below, centered under the parent group
       const children = layoutChildren[gr] || [];
       if (children.length === 0) return;
 
@@ -357,7 +357,7 @@ export class TreeService {
       });
     }
 
-    // Layout all root groups side by side, centred at x = 0
+    // Layout all root groups side by side, centered at x = 0
     const rootList = [...rootGroups];
     const rootWidths = rootList.map(rg => subtreeWidth(rg));
     const totalRootW = rootWidths.reduce((s, w) => s + w, 0)
