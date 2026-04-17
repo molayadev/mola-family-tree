@@ -76,19 +76,19 @@ export const TWIN_TYPES = [
 // ── Zodiac constants ───────────────────────────────────────────────────
 
 export const ZODIAC_SIGNS = [
-  { value: '', icon: '--' },
-  { value: 'aries', icon: '♈' },
-  { value: 'taurus', icon: '♉' },
-  { value: 'gemini', icon: '♊' },
-  { value: 'cancer', icon: '♋' },
-  { value: 'leo', icon: '♌' },
-  { value: 'virgo', icon: '♍' },
-  { value: 'libra', icon: '♎' },
-  { value: 'scorpio', icon: '♏' },
-  { value: 'sagittarius', icon: '♐' },
-  { value: 'capricorn', icon: '♑' },
-  { value: 'aquarius', icon: '♒' },
-  { value: 'pisces', icon: '♓' },
+  { value: '', icon: '--', label: 'Sin signo' },
+  { value: 'aries', icon: '♈', label: 'Aries' },
+  { value: 'taurus', icon: '♉', label: 'Tauro' },
+  { value: 'gemini', icon: '♊', label: 'Géminis' },
+  { value: 'cancer', icon: '♋', label: 'Cáncer' },
+  { value: 'leo', icon: '♌', label: 'Leo' },
+  { value: 'virgo', icon: '♍', label: 'Virgo' },
+  { value: 'libra', icon: '♎', label: 'Libra' },
+  { value: 'scorpio', icon: '♏', label: 'Escorpio' },
+  { value: 'sagittarius', icon: '♐', label: 'Sagitario' },
+  { value: 'capricorn', icon: '♑', label: 'Capricornio' },
+  { value: 'aquarius', icon: '♒', label: 'Acuario' },
+  { value: 'pisces', icon: '♓', label: 'Piscis' },
 ];
 
 // ── All possible bond/link values (superset) ─────────────────────────

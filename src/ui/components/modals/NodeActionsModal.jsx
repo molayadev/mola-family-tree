@@ -398,10 +398,11 @@ export default function NodeActionsModal({
                     <select
                       className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
                       value={formData.ascendantSign || ''}
+                      aria-label="Seleccionar signo ascendente"
                       onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
                     >
                       {ZODIAC_SIGNS.map(sign => (
-                        <option key={sign.value || 'empty'} value={sign.value}>{sign.icon}</option>
+                        <option key={sign.value || 'empty'} value={sign.value} aria-label={sign.label} title={sign.label}>{sign.icon}</option>
                       ))}
                     </select>
                   </div>
@@ -410,10 +411,11 @@ export default function NodeActionsModal({
                     <select
                       className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
                       value={formData.sunSign || ''}
+                      aria-label="Seleccionar signo solar"
                       onChange={e => setFormData({ ...formData, sunSign: e.target.value })}
                     >
                       {ZODIAC_SIGNS.map(sign => (
-                        <option key={`sun-${sign.value || 'empty'}`} value={sign.value}>{sign.icon}</option>
+                        <option key={`sun-${sign.value || 'empty'}`} value={sign.value} aria-label={sign.label} title={sign.label}>{sign.icon}</option>
                       ))}
                     </select>
                   </div>
@@ -422,10 +424,11 @@ export default function NodeActionsModal({
                     <select
                       className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
                       value={formData.moonSign || ''}
+                      aria-label="Seleccionar signo lunar"
                       onChange={e => setFormData({ ...formData, moonSign: e.target.value })}
                     >
                       {ZODIAC_SIGNS.map(sign => (
-                        <option key={`moon-${sign.value || 'empty'}`} value={sign.value}>{sign.icon}</option>
+                        <option key={`moon-${sign.value || 'empty'}`} value={sign.value} aria-label={sign.label} title={sign.label}>{sign.icon}</option>
                       ))}
                     </select>
                   </div>
