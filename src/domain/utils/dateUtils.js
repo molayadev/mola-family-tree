@@ -61,3 +61,20 @@ export function formatFullDeathDate(dateStr) {
 export function isDeceased(data) {
   return Boolean(data.deathDate);
 }
+
+/**
+ * Calculate the current age from a birth date string (YYYY-MM-DD).
+ * If the person is deceased, calculates age at time of death.
+ * Returns null when birthDate is falsy.
+ */
+export function calculateAge(birthDate, deathDate) {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  const end = deathDate ? new Date(deathDate) : new Date();
+  let age = end.getFullYear() - birth.getFullYear();
+  const monthDiff = end.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && end.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : null;
+}

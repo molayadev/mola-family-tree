@@ -26,7 +26,7 @@ export const isPartnerEdgeType = (type) => PARTNER_EDGE_TYPES.includes(type);
 
 export const PARTNER_LABELS = [
   'Casado/a', 'Divorciado', 'Separado/a', 'Enviudado',
-  'Comprometido/a', 'Pareja', 'Amigos', 'Anulación', 'Desconocido', 'Otros',
+  'Comprometido/a', 'Pareja', 'Amigos', 'Progenitores', 'Desconocido', 'Otros',
 ];
 
 export const PARENT_LABELS = [
@@ -69,8 +69,8 @@ export const LINK_TYPES = [
 
 export const TWIN_TYPES = [
   { value: '', label: 'Ninguno' },
-  { value: 'twins', label: 'Gemelos (idénticos)' },
-  { value: 'fraternal', label: 'Mellizos (fraternos)' },
+  { value: 'twins', label: 'Gemelos' },
+  { value: 'fraternal', label: 'Mellizos' },
 ];
 
 // ── All possible bond/link values (superset) ─────────────────────────
