@@ -1,6 +1,9 @@
+import { useEffect, useRef } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
 export default function ReloadPrompt() {
+  const intervalRef = useRef(null);
+
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -8,12 +11,20 @@ export default function ReloadPrompt() {
     onRegisteredSW(swUrl, registration) {
       if (registration) {
         // Check for updates every 60 seconds
-        setInterval(() => {
+        intervalRef.current = setInterval(() => {
           registration.update();
         }, 60 * 1000);
       }
     },
   });
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
   if (!needRefresh) return null;
 
