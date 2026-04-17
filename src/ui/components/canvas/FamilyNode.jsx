@@ -20,6 +20,9 @@ export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, o
       onTouchStart={(e) => onPointerDown(e, node.id)}
       opacity={isDimmed ? 0.4 : 1}
     >
+      {/* Invisible hit-area covering the circle + text below to ensure mobile taps register */}
+      <rect x="-40" y="-36" width="80" height="104" fill="transparent" />
+
       <circle r="32" fill="black" opacity="0.1" cy="4" />
       <circle
         r="30"
