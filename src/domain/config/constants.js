@@ -14,3 +14,10 @@ export const PARTNER_LABELS = [
 export const PARENT_LABELS = [
   'Biológico', 'Adoptivo', 'Padrastro/Madrastra', 'Guarda legal', 'Desconocido',
 ];
+
+export const LINK_TYPES = [
+  { value: 'child', label: 'Hijo/a', description: 'El nodo seleccionado será hijo/a' },
+  { value: 'parent', label: 'Padre/Madre', description: 'El nodo seleccionado será padre/madre' },
+  { value: 'spouse', label: 'Cónyuge', description: 'Vínculo matrimonial activo' },
+  { value: 'ex_spouse', label: 'Ex-pareja', description: 'Relación pasada o divorciada' },
+];

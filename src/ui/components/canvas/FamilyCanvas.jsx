@@ -1,17 +1,23 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Move } from 'lucide-react';
+import { Move, Link as LinkIcon, X } from 'lucide-react';
 import { useCanvas } from '../../../application/hooks/useCanvas';
+import { downloadTreeSnapshot } from '../../../application/services/SnapshotService';
 import CanvasHUD from './CanvasHUD';
 import ZoomControls from './ZoomControls';
 import FamilyNode from './FamilyNode';
 import FamilyEdge from './FamilyEdge';
 import NodeActionsModal from '../modals/NodeActionsModal';
 import PartnerSelectionModal from '../modals/PartnerSelectionModal';
+import LinkTypeSelectionModal from '../modals/LinkTypeSelectionModal';
 
 export default function FamilyCanvas({ username, nodes, edges, treeService, exportService, onSave, onLogout }) {
   const [actionsModal, setActionsModal] = useState({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
+
+  // Linking mode state
+  const [linkingMode, setLinkingMode] = useState(null); // { sourceId } or null
+  const [linkTarget, setLinkTarget] = useState(null);    // target nodeId or null
 
   const {
     transform,
@@ -64,6 +70,12 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     setTimeout(() => fitToScreen(result.nodes), 100);
   }, [nodes, edges, treeService, saveAndUpdate, fitToScreen]);
 
+  const enterLinkingMode = useCallback((sourceId) => {
+    closeActionsModal();
+    setLinkingMode({ sourceId });
+    setLinkTarget(null);
+  }, [closeActionsModal]);
+
   const handleNodeAction = useCallback((action) => {
     const nodeId = actionsModal.nodeId;
     if (!nodeId) return;
@@ -100,8 +112,10 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
+    } else if (action === 'link') {
+      enterLinkingMode(nodeId);
     }
-  }, [actionsModal.nodeId, nodes, edges, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal]);
+  }, [actionsModal.nodeId, nodes, edges, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal, enterLinkingMode]);
 
   const handleUpdateNode = useCallback((nodeId, newData) => {
     const updatedNodes = treeService.updateNode(nodes, nodeId, newData);
@@ -124,6 +138,53 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   const handleExport = useCallback(() => {
     exportService.exportTree(username, nodes, edges);
   }, [username, nodes, edges, exportService]);
+
+  const handleSnapshot = useCallback(() => {
+    downloadTreeSnapshot(username, nodes, edges);
+  }, [username, nodes, edges]);
+
+  // ---- Linking mode ----
+  const cancelLinkingMode = useCallback(() => {
+    setLinkingMode(null);
+    setLinkTarget(null);
+  }, []);
+
+  const handleLinkTargetSelected = useCallback((targetId) => {
+    if (!linkingMode) return;
+    if (targetId === linkingMode.sourceId) return; // can't link to self
+    setLinkTarget(targetId);
+  }, [linkingMode]);
+
+  const handleLinkTypeChosen = useCallback((linkType) => {
+    if (!linkingMode || !linkTarget) return;
+    const newEdges = treeService.linkNodes(edges, linkingMode.sourceId, linkTarget, linkType);
+    saveAndUpdate(nodes, newEdges);
+    setLinkingMode(null);
+    setLinkTarget(null);
+  }, [linkingMode, linkTarget, edges, nodes, treeService, saveAndUpdate]);
+
+  const handleNodePointerDownWrapped = useCallback((e, nodeId) => {
+    if (linkingMode) {
+      e.stopPropagation();
+      e.preventDefault();
+      handleLinkTargetSelected(nodeId);
+      return;
+    }
+    handleNodePointerDown(e, nodeId, nodes);
+  }, [linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes]);
+
+  const sourceNodeForLink = useMemo(
+    () => linkingMode ? nodes.find(n => n.id === linkingMode.sourceId) : null,
+    [linkingMode, nodes],
+  );
+  const targetNodeForLink = useMemo(
+    () => linkTarget ? nodes.find(n => n.id === linkTarget) : null,
+    [linkTarget, nodes],
+  );
+  const disableSpouseLink = useMemo(() => {
+    if (!linkingMode || !linkTarget) return false;
+    return treeService.hasSpouse(edges, linkingMode.sourceId) || treeService.hasSpouse(edges, linkTarget);
+  }, [linkingMode, linkTarget, edges, treeService]);
 
   const actionsModalNode = useMemo(() => nodes.find(n => n.id === actionsModal.nodeId), [nodes, actionsModal.nodeId]);
 
@@ -151,6 +212,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
         zoom={transform.k}
         onFitToScreen={() => fitToScreen(nodes)}
         onExport={handleExport}
+        onSnapshot={handleSnapshot}
         onLogout={onLogout}
       />
 
@@ -178,6 +240,31 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
         onSelect={(partnerId) => confirmAddChild(partnerSelection.sourceId, partnerId)}
       />
 
+      <LinkTypeSelectionModal
+        sourceNode={sourceNodeForLink}
+        targetNode={targetNodeForLink}
+        disableSpouse={disableSpouseLink}
+        onSelect={handleLinkTypeChosen}
+        onClose={() => setLinkTarget(null)}
+      />
+
+      {/* Linking mode banner */}
+      {linkingMode && !linkTarget && (
+        <div className="absolute top-16 md:top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="bg-green-600 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3">
+            <LinkIcon size={18} />
+            <span className="text-sm font-bold">Toca el nodo que quieres vincular</span>
+            <button
+              onClick={cancelLinkingMode}
+              className="ml-2 p-1 hover:bg-white/20 rounded-full transition-colors"
+              title="Cancelar"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <svg className="w-full h-full pointer-events-none">
         <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
           {edges.map(edge => {
@@ -198,8 +285,10 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
             <FamilyNode
               key={node.id}
               node={node}
-              isSelected={actionsModal.nodeId === node.id}
-              onPointerDown={(e, id) => handleNodePointerDown(e, id, nodes)}
+              isSelected={!linkingMode && actionsModal.nodeId === node.id}
+              isDimmed={linkingMode && node.id !== linkingMode.sourceId && node.id !== linkTarget}
+              isLinkTarget={linkingMode && node.id === linkTarget}
+              onPointerDown={(e, id) => handleNodePointerDownWrapped(e, id)}
             />
           ))}
         </g>

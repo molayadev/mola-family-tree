@@ -11,6 +11,7 @@ import {
   LogOut,
   ChevronDown,
   User,
+  Waypoints,
 } from 'lucide-react';
 import Button from '../common/Button';
 import { COLORS, PARTNER_LABELS, PARENT_LABELS } from '../../../domain/config/constants';
@@ -134,7 +135,7 @@ export default function NodeActionsModal({
         {/* Quick actions row */}
         <div className="px-5 pt-2 pb-1">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Acciones rápidas</p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             <button
               className={`${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
               onClick={() => handleQuickAction('add_child')}
@@ -161,7 +162,14 @@ export default function NodeActionsModal({
               onClick={() => handleQuickAction('add_ex_spouse')}
             >
               <HeartCrack size={22} className="text-gray-400" />
-              <span className="text-[10px] font-bold text-gray-600">Ex-pareja</span>
+              <span className="text-[10px] font-bold text-gray-600">Ex</span>
+            </button>
+            <button
+              className={`${quickBtnClass} border-green-200 bg-white hover:bg-green-50 hover:border-green-400`}
+              onClick={() => handleQuickAction('link')}
+            >
+              <Waypoints size={22} className="text-green-500" />
+              <span className="text-[10px] font-bold text-gray-600">Vincular</span>
             </button>
           </div>
         </div>
