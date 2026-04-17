@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { LocalStorageAdapter } from '../infrastructure/adapters/LocalStorageAdapter';
 import { AuthService } from '../application/services/AuthService';
 import { TreeService } from '../application/services/TreeService';
@@ -18,16 +18,12 @@ export default function App() {
 
   const [view, setView] = useState('landing');
   const [currentUser, setCurrentUser] = useState(null);
-  const [hasLocalUsers, setHasLocalUsers] = useState(false);
+  const [hasLocalUsersFlag, setHasLocalUsersFlag] = useState(() => authService.hasUsers());
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
 
-  useEffect(() => {
-    setHasLocalUsers(authService.hasUsers());
-  }, [authService]);
-
   const refreshHasUsers = useCallback(() => {
-    setHasLocalUsers(authService.hasUsers());
+    setHasLocalUsersFlag(authService.hasUsers());
   }, [authService]);
 
   const handleLogin = useCallback((username, password) => {
@@ -92,7 +88,7 @@ export default function App() {
         onLogin={() => setView('login')}
         onRegister={() => setView('register')}
         onImport={handleImport}
-        hasLocalUsers={hasLocalUsers}
+        hasLocalUsers={hasLocalUsersFlag}
       />
     );
   }

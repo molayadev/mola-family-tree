@@ -1,20 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MoreHorizontal, Wand2 } from 'lucide-react';
 import Button from '../common/Button';
 import DateSelector from '../common/DateSelector';
+import TimeWheelSelector from '../common/TimeWheelSelector';
+import WheelPicker from '../common/WheelPicker';
 import CollapsibleFieldset from '../common/CollapsibleFieldset';
 import { TWIN_TYPES, ZODIAC_SIGNS } from '../../../domain/config/constants';
 import { calculateAge } from '../../../domain/utils/dateUtils';
 import useZodiac from '../../../application/hooks/useZodiac';
 
+// Pre-mapped option arrays for WheelPicker (avoids re-creating on every render)
+const ZODIAC_OPTIONS = ZODIAC_SIGNS.map(z => ({ value: z.value, label: z.label, icon: z.icon }));
+const TWIN_OPTIONS = TWIN_TYPES.map(t => ({ value: t.value, label: t.label }));
+
 export default function EditModal({ node, isOpen, onClose, onSave }) {
-  const [formData, setFormData] = useState({ ...node?.data });
+  const [formData, setFormData] = useState(() => node ? { ...node.data } : {});
   const [zodiacAlert, setZodiacAlert] = useState(null);
   const { calculateZodiac } = useZodiac();
-
-  useEffect(() => {
-    if (node) setFormData({ ...node.data });
-  }, [node]);
 
   if (!isOpen) return null;
 
@@ -103,11 +105,9 @@ export default function EditModal({ node, isOpen, onClose, onSave }) {
             {/* Birth time */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hora de Nacimiento</label>
-              <input
-                type="time"
-                className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+              <TimeWheelSelector
                 value={formData.birthTime || ''}
-                onChange={e => setFormData({ ...formData, birthTime: e.target.value })}
+                onChange={v => setFormData({ ...formData, birthTime: v })}
               />
             </div>
 
@@ -173,40 +173,28 @@ export default function EditModal({ node, isOpen, onClose, onSave }) {
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Ascendente</label>
-                  <select
-                    className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
-                    value={formData.ascendantSign || ''}
-                    onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
-                  >
-                    {ZODIAC_SIGNS.map(z => (
-                      <option key={z.value} value={z.value}>{z.icon} {z.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
                   <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Sol</label>
-                  <select
-                    className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                  <WheelPicker
+                    options={ZODIAC_OPTIONS}
                     value={formData.sunSign || ''}
-                    onChange={e => setFormData({ ...formData, sunSign: e.target.value })}
-                  >
-                    {ZODIAC_SIGNS.map(z => (
-                      <option key={z.value} value={z.value}>{z.icon} {z.label}</option>
-                    ))}
-                  </select>
+                    onChange={v => setFormData({ ...formData, sunSign: v })}
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Luna</label>
-                  <select
-                    className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                  <WheelPicker
+                    options={ZODIAC_OPTIONS}
                     value={formData.moonSign || ''}
-                    onChange={e => setFormData({ ...formData, moonSign: e.target.value })}
-                  >
-                    {ZODIAC_SIGNS.map(z => (
-                      <option key={z.value} value={z.value}>{z.icon} {z.label}</option>
-                    ))}
-                  </select>
+                    onChange={v => setFormData({ ...formData, moonSign: v })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Ascendente</label>
+                  <WheelPicker
+                    options={ZODIAC_OPTIONS}
+                    value={formData.ascendantSign || ''}
+                    onChange={v => setFormData({ ...formData, ascendantSign: v })}
+                  />
                 </div>
               </div>
             </div>
@@ -224,15 +212,11 @@ export default function EditModal({ node, isOpen, onClose, onSave }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Gemelo / Mellizo</label>
-                <select
-                  className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
+                <WheelPicker
+                  options={TWIN_OPTIONS}
                   value={formData.twinType || ''}
-                  onChange={e => setFormData({ ...formData, twinType: e.target.value })}
-                >
-                  {TWIN_TYPES.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
+                  onChange={v => setFormData({ ...formData, twinType: v })}
+                />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Orden Nacimiento</label>

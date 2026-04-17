@@ -1,11 +1,9 @@
-import { useRef } from 'react';
 import { User, Upload } from 'lucide-react';
 import Button from '../common/Button';
 
 const appVersion = __APP_VERSION__;
 
 export default function LandingPage({ onLogin, onRegister, onImport, hasLocalUsers }) {
-  const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -41,10 +39,10 @@ export default function LandingPage({ onLogin, onRegister, onImport, hasLocalUse
           </Button>
 
           <div className="relative w-full pt-4 border-t border-gray-200 mt-4">
-            <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
-            <Button variant="ghost" onClick={() => fileInputRef.current.click()} className="w-full text-sm">
+            <label className="px-6 py-3 rounded-full font-semibold transition-all duration-200 transform active:scale-95 flex items-center justify-center gap-2 bg-transparent text-black hover:bg-gray-100 border border-gray-200 hover:border-gray-300 w-full text-sm cursor-pointer">
+              <input type="file" accept=".json,application/json" className="absolute w-0 h-0 opacity-0 overflow-hidden" onChange={handleFileChange} aria-label="Seleccionar archivo JSON de respaldo para importar" />
               <Upload size={16} /> Importar Respaldo (JSON)
-            </Button>
+            </label>
           </div>
         </div>
 

@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link as LinkIcon, MoreHorizontal, Trash2, Edit2, ChevronDown, User } from 'lucide-react';
 import Button from '../common/Button';
+import WheelPicker from '../common/WheelPicker';
 import { COLORS, PARTNER_LABELS, PARENT_LABELS, isPartnerEdgeType, resolveEdgeLabel } from '../../../domain/config/constants';
+
+// Pre-mapped option arrays for WheelPicker
+const PARTNER_LABEL_OPTIONS = PARTNER_LABELS.map(l => ({ value: l, label: l }));
+const PARENT_LABEL_OPTIONS = PARENT_LABELS.map(l => ({ value: l, label: l }));
 
 export default function LinksModal({ state, onClose, nodes, edges, onUpdateLink, onDeleteLink }) {
   const { isOpen, nodeId, expandedEdgeId } = state;
-  const [localExpandedId, setLocalExpandedId] = useState(null);
-
-  useEffect(() => {
-    if (isOpen) setLocalExpandedId(expandedEdgeId);
-  }, [isOpen, expandedEdgeId]);
+  const [localExpandedId, setLocalExpandedId] = useState(() => expandedEdgeId ?? null);
 
   if (!isOpen || !nodeId) return null;
 
@@ -104,15 +105,11 @@ export default function LinksModal({ state, onClose, nodes, edges, onUpdateLink,
                     <div className="p-4 pt-0 border-t border-gray-50 bg-gray-50/50 space-y-4 animate-in slide-in-from-top-2">
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">Estado de la Relación</label>
-                        <select
-                          className="w-full p-2.5 rounded-xl border border-gray-200 focus:border-purple-400 outline-none text-sm text-gray-700 bg-white shadow-sm"
+                        <WheelPicker
+                          options={isPartner ? PARTNER_LABEL_OPTIONS : PARENT_LABEL_OPTIONS}
                           value={currentLabel}
-                          onChange={(e) => onUpdateLink(edge.id, { label: e.target.value })}
-                        >
-                          {(isPartner ? PARTNER_LABELS : PARENT_LABELS).map(l => (
-                            <option key={l} value={l}>{l}</option>
-                          ))}
-                        </select>
+                          onChange={(v) => onUpdateLink(edge.id, { label: v })}
+                        />
                       </div>
 
                       <div>

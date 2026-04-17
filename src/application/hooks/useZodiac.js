@@ -29,11 +29,12 @@ function calcSunSign(birthDate, birthTime) {
 
 /**
  * Calculate the Moon sign from an ecliptic longitude.
- * Requires: birthDate (YYYY-MM-DD) + birthTime (HH:mm).
+ * Requires: birthDate (YYYY-MM-DD).
+ * Uses noon UTC as fallback when no birth time is given (less precise).
  */
 function calcMoonSign(birthDate, birthTime) {
   const [y, m, d] = birthDate.split('-').map(Number);
-  const [hh, mm] = birthTime.split(':').map(Number);
+  const [hh, mm] = birthTime ? birthTime.split(':').map(Number) : [12, 0];
   const utc = new Date(Date.UTC(y, m - 1, d, hh, mm, 0));
   const t = MakeTime(utc);
   const moon = EclipticGeoMoon(t);
@@ -97,11 +98,14 @@ export default function useZodiac() {
       errors.push('Sol: se requiere la fecha de nacimiento.');
     }
 
-    // Moon sign – needs date + time
-    if (hasDate && hasTime) {
+    // Moon sign – needs date; time is optional but recommended for precision
+    if (hasDate) {
       moonSign = calcMoonSign(birthDate, birthTime);
+      if (!hasTime) {
+        errors.push('Luna: se ha calculado sin hora; añade la hora de nacimiento para mayor precisión.');
+      }
     } else {
-      errors.push('Luna: se requiere la fecha y hora de nacimiento.');
+      errors.push('Luna: se requiere la fecha de nacimiento.');
     }
 
     // Ascendant – needs date + time + location
