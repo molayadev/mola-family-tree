@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Move, Link as LinkIcon, X } from 'lucide-react';
+import { isPartnerEdgeType } from '../../../domain/config/constants';
 import { useCanvas } from '../../../application/hooks/useCanvas';
 import { downloadTreeSnapshot } from '../../../application/services/SnapshotService';
 import CanvasHUD from './CanvasHUD';
@@ -18,6 +19,96 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   // Linking mode state
   const [linkingMode, setLinkingMode] = useState(null); // { sourceId } or null
   const [linkTarget, setLinkTarget] = useState(null);    // target nodeId or null
+
+  // ── Collapse / expand family nuclei ──────────────────────────────────
+  const [collapsedFamilies, setCollapsedFamilies] = useState(new Set());
+
+  // A family nucleus = a set of parents that share at least one child
+  const familyNuclei = useMemo(() => {
+    const childParents = {};
+    edges.forEach(e => {
+      if (e.type === 'parent') {
+        (childParents[e.to] ??= new Set()).add(e.from);
+      }
+    });
+    const nucleiMap = {};
+    Object.entries(childParents).forEach(([childId, parentSet]) => {
+      const key = [...parentSet].sort().join(':');
+      if (!nucleiMap[key]) nucleiMap[key] = { id: key, parents: [...parentSet], children: [] };
+      nucleiMap[key].children.push(childId);
+    });
+    return Object.values(nucleiMap);
+  }, [edges]);
+
+  // Compute which node IDs are hidden due to collapsed families
+  const hiddenNodeIds = useMemo(() => {
+    if (collapsedFamilies.size === 0) return new Set();
+    const hidden = new Set();
+    const childrenOf = {};
+    const partnersOf = {};
+    edges.forEach(e => {
+      if (e.type === 'parent') {
+        (childrenOf[e.from] ??= []).push(e.to);
+      } else if (isPartnerEdgeType(e.type)) {
+        (partnersOf[e.from] ??= []).push(e.to);
+        (partnersOf[e.to] ??= []).push(e.from);
+      }
+    });
+    collapsedFamilies.forEach(familyId => {
+      const nucleus = familyNuclei.find(n => n.id === familyId);
+      if (!nucleus) return;
+      const queue = [...nucleus.children];
+      queue.forEach(id => hidden.add(id));
+      let head = 0;
+      while (head < queue.length) {
+        const cur = queue[head++];
+        (partnersOf[cur] || []).forEach(pid => {
+          if (!hidden.has(pid) && !nucleus.parents.includes(pid)) {
+            hidden.add(pid); queue.push(pid);
+          }
+        });
+        (childrenOf[cur] || []).forEach(cid => {
+          if (!hidden.has(cid)) { hidden.add(cid); queue.push(cid); }
+        });
+      }
+    });
+    return hidden;
+  }, [collapsedFamilies, familyNuclei, edges]);
+
+  const visibleNodes = useMemo(() => nodes.filter(n => !hiddenNodeIds.has(n.id)), [nodes, hiddenNodeIds]);
+  const visibleEdges = useMemo(() => edges.filter(e => !hiddenNodeIds.has(e.from) && !hiddenNodeIds.has(e.to)), [edges, hiddenNodeIds]);
+
+  const toggleCollapse = useCallback((familyId) => {
+    setCollapsedFamilies(prev => {
+      const next = new Set(prev);
+      if (next.has(familyId)) next.delete(familyId);
+      else next.add(familyId);
+      return next;
+    });
+  }, []);
+
+  const handleToggleCollapseAll = useCallback(() => {
+    if (collapsedFamilies.size > 0) {
+      setCollapsedFamilies(new Set());
+    } else {
+      setCollapsedFamilies(new Set(familyNuclei.map(n => n.id)));
+    }
+  }, [collapsedFamilies, familyNuclei]);
+
+  // Collapse-toggle positions (rendered in SVG)
+  const collapseToggles = useMemo(() => {
+    return familyNuclei
+      .filter(nucleus => nucleus.parents.some(pid => !hiddenNodeIds.has(pid)))
+      .map(nucleus => {
+        const isCollapsed = collapsedFamilies.has(nucleus.id);
+        const parentNodes = nucleus.parents.map(pid => nodes.find(n => n.id === pid)).filter(Boolean);
+        if (parentNodes.length === 0) return null;
+        const avgX = parentNodes.reduce((s, n) => s + n.x, 0) / parentNodes.length;
+        const maxY = Math.max(...parentNodes.map(n => n.y));
+        return { id: nucleus.id, x: avgX, y: maxY + 70, parentMaxY: maxY, isCollapsed, childCount: nucleus.children.length };
+      })
+      .filter(Boolean);
+  }, [familyNuclei, collapsedFamilies, hiddenNodeIds, nodes]);
 
   const {
     transform,
@@ -148,6 +239,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   }, [username, nodes, edges]);
 
   const handleOrganize = useCallback(() => {
+    setCollapsedFamilies(new Set()); // expand all before reorganizing
     const organizedNodes = treeService.organizeByLevels(nodes, edges);
     saveAndUpdate(organizedNodes, edges);
     setTimeout(() => fitToScreen(organizedNodes), 100);
@@ -230,11 +322,14 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
         username={username}
         nodeCount={nodes.length}
         zoom={transform.k}
-        onFitToScreen={() => fitToScreen(nodes)}
+        onFitToScreen={() => fitToScreen(visibleNodes)}
         onOrganize={handleOrganize}
         onExport={handleExport}
         onSnapshot={handleSnapshot}
         onLogout={onLogout}
+        hasFamilies={familyNuclei.length > 0}
+        hasCollapsed={collapsedFamilies.size > 0}
+        onToggleCollapseAll={handleToggleCollapseAll}
       />
 
       <ZoomControls onZoomIn={zoomIn} onZoomOut={zoomOut} />
@@ -290,7 +385,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
 
       <svg className="w-full h-full pointer-events-none">
         <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
-          {edges.map(edge => {
+          {visibleEdges.map(edge => {
             const from = nodes.find(n => n.id === edge.from);
             const to = nodes.find(n => n.id === edge.to);
             return (
@@ -304,7 +399,38 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
             );
           })}
 
-          {nodes.map(node => (
+          {/* Collapse / expand toggle dots */}
+          {collapseToggles.map(toggle => (
+            <g key={`ct-${toggle.id}`}>
+              {toggle.isCollapsed && (
+                <line
+                  x1={toggle.x} y1={toggle.parentMaxY + 35}
+                  x2={toggle.x} y2={toggle.y - 14}
+                  stroke="#CBD5E1" strokeWidth="2" strokeDasharray="4,4"
+                />
+              )}
+              <g
+                className="pointer-events-auto cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); toggleCollapse(toggle.id); }}
+              >
+                <circle
+                  cx={toggle.x} cy={toggle.y}
+                  r={toggle.isCollapsed ? 14 : 9}
+                  fill="white" stroke={toggle.isCollapsed ? '#F97316' : '#9CA3AF'}
+                  strokeWidth="1.5"
+                />
+                <text
+                  x={toggle.x} y={toggle.y + 4}
+                  textAnchor="middle" fill={toggle.isCollapsed ? '#F97316' : '#6B7280'}
+                  className={`${toggle.isCollapsed ? 'text-[11px]' : 'text-[10px]'} font-bold pointer-events-none select-none`}
+                >
+                  {toggle.isCollapsed ? `+${toggle.childCount}` : '−'}
+                </text>
+              </g>
+            </g>
+          ))}
+
+          {visibleNodes.map(node => (
             <FamilyNode
               key={node.id}
               node={node}

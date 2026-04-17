@@ -204,168 +204,172 @@ export class TreeService {
   }
 
   /**
-   * Organize every node in the tree by generation level.
-   * Parents sit above their children; partners share the same row.
+   * Organize every node in the tree as a proper genealogical tree.
+   *
+   * The algorithm:
+   *  1. Group partners via union-find.
+   *  2. Build a layout tree where each node is a partner-group and edges
+   *     go from parent-groups to child-groups.
+   *  3. Bottom-up: compute the width each subtree needs.
+   *  4. Top-down: assign (x, y) so that every parent-group is centred
+   *     directly above its children.
+   *
    * Returns a new nodes array with updated x/y positions.
    */
   organizeByLevels(nodes, edges) {
     if (nodes.length === 0) return nodes;
 
-    // ── 1. Build adjacency helpers ──────────────────────────────────────
+    // ── Layout configuration ───────────────────────────────────────────
+    const PARTNER_GAP = 100;   // horizontal distance between partners
+    const CHILD_GAP = 160;     // horizontal gap between child subtrees
+    const LEVEL_H = 200;       // vertical distance between generations
+    const FAMILY_GAP = 240;    // gap between disconnected family trees
+
+    // ── 1. Build adjacency helpers ─────────────────────────────────────
     const childrenOf = {};   // parentId → [childId]
     const parentsOf = {};    // childId  → [parentId]
-    const partnersOf = {};   // nodeId   → [partnerId]
 
     edges.forEach(e => {
       if (e.type === EDGE_TYPES.PARENT) {
-        if (!childrenOf[e.from]) childrenOf[e.from] = [];
-        childrenOf[e.from].push(e.to);
-        if (!parentsOf[e.to]) parentsOf[e.to] = [];
-        parentsOf[e.to].push(e.from);
-      } else if (isPartnerEdgeType(e.type)) {
-        if (!partnersOf[e.from]) partnersOf[e.from] = [];
-        partnersOf[e.from].push(e.to);
-        if (!partnersOf[e.to]) partnersOf[e.to] = [];
-        partnersOf[e.to].push(e.from);
+        (childrenOf[e.from] ??= []).push(e.to);
+        (parentsOf[e.to] ??= []).push(e.from);
       }
     });
 
-    // ── 2. Group partners into "family units" via union-find ────────────
-    const parent = {};
+    // ── 2. Union-Find to group partners ────────────────────────────────
+    const uf = {};
     const find = (a) => {
-      if (parent[a] === undefined) parent[a] = a;
-      while (parent[a] !== a) {
-        parent[a] = parent[parent[a]];
-        a = parent[a];
-      }
+      uf[a] ??= a;
+      while (uf[a] !== a) { uf[a] = uf[uf[a]]; a = uf[a]; }
       return a;
     };
-    const union = (a, b) => { parent[find(a)] = find(b); };
+    const union = (a, b) => { uf[find(a)] = find(b); };
 
     edges.forEach(e => {
       if (isPartnerEdgeType(e.type)) union(e.from, e.to);
     });
 
-    // ── 3. Assign generation levels via BFS ─────────────────────────────
-    const level = {};
-    const nodeIds = new Set(nodes.map(n => n.id));
-
-    // Find root nodes (those with no parents)
-    const roots = nodes.filter(n => !parentsOf[n.id] || parentsOf[n.id].length === 0);
-
-    // BFS from every root
-    const queue = [];
-    roots.forEach(r => {
-      if (level[r.id] === undefined) {
-        level[r.id] = 0;
-        queue.push(r.id);
-      }
-    });
-
-    // If there are disconnected nodes with no parent info, assign them level 0
+    // groupMembers: union-find root → [member node ids]
+    const groupMembers = {};
     nodes.forEach(n => {
-      if (level[n.id] === undefined) {
-        level[n.id] = 0;
-        queue.push(n.id);
+      const root = find(n.id);
+      (groupMembers[root] ??= []).push(n.id);
+    });
+
+    // ── 3. Build layout tree via BFS from root groups ──────────────────
+    const layoutChildren = {};   // groupRoot → [childGroupRoot, …]
+    const assigned = new Set();
+
+    // Root groups: groups where at least one member has no parents
+    const rootGroups = new Set();
+    nodes.forEach(n => {
+      if (!parentsOf[n.id] || parentsOf[n.id].length === 0) {
+        rootGroups.add(find(n.id));
       }
     });
+
+    const queue = [...rootGroups];
+    queue.forEach(gr => assigned.add(gr));
 
     let head = 0;
     while (head < queue.length) {
-      const cur = queue[head++];
-      const curLevel = level[cur];
+      const gr = queue[head++];
+      const members = groupMembers[gr] || [];
+      const childGroupSet = new Set();
 
-      // Partners share the same level
-      (partnersOf[cur] || []).forEach(pid => {
-        if (level[pid] === undefined && nodeIds.has(pid)) {
-          level[pid] = curLevel;
-          queue.push(pid);
-        }
+      members.forEach(mid => {
+        (childrenOf[mid] || []).forEach(cid => {
+          const cGr = find(cid);
+          if (!assigned.has(cGr)) {
+            childGroupSet.add(cGr);
+            assigned.add(cGr);
+          }
+        });
       });
 
-      // Children go one level below
-      (childrenOf[cur] || []).forEach(cid => {
-        if (level[cid] === undefined && nodeIds.has(cid)) {
-          level[cid] = curLevel + 1;
-          queue.push(cid);
-        }
+      if (childGroupSet.size > 0) {
+        layoutChildren[gr] = [...childGroupSet];
+        layoutChildren[gr].forEach(cg => queue.push(cg));
+      }
+    }
+
+    // Catch any disconnected nodes as additional roots
+    nodes.forEach(n => {
+      const gr = find(n.id);
+      if (!assigned.has(gr)) {
+        rootGroups.add(gr);
+        assigned.add(gr);
+      }
+    });
+
+    // ── 4. Compute subtree widths (bottom-up, memoised) ────────────────
+    const widthCache = {};
+
+    function subtreeWidth(gr) {
+      if (widthCache[gr] !== undefined) return widthCache[gr];
+
+      const members = groupMembers[gr] || [];
+      const memberWidth = Math.max(80, (members.length - 1) * PARTNER_GAP + 60);
+
+      const children = layoutChildren[gr] || [];
+      if (children.length === 0) {
+        widthCache[gr] = memberWidth;
+        return memberWidth;
+      }
+
+      let totalChildW = 0;
+      children.forEach((cg, i) => {
+        totalChildW += subtreeWidth(cg);
+        if (i < children.length - 1) totalChildW += CHILD_GAP;
       });
 
-      // Parents go one level above
-      (parentsOf[cur] || []).forEach(pid => {
-        if (level[pid] === undefined && nodeIds.has(pid)) {
-          level[pid] = curLevel - 1;
-          queue.push(pid);
-        }
+      widthCache[gr] = Math.max(memberWidth, totalChildW);
+      return widthCache[gr];
+    }
+
+    [...rootGroups].forEach(rg => subtreeWidth(rg));
+
+    // ── 5. Assign positions (top-down) ─────────────────────────────────
+    const posMap = {};
+
+    function positionGroup(gr, centerX, level) {
+      const members = groupMembers[gr] || [];
+
+      // Centre the partner group at centerX
+      const totalMemberW = (members.length - 1) * PARTNER_GAP;
+      const startX = centerX - totalMemberW / 2;
+      members.forEach((mid, i) => {
+        posMap[mid] = { x: startX + i * PARTNER_GAP, y: level * LEVEL_H };
+      });
+
+      // Position child groups below, centred under the parent group
+      const children = layoutChildren[gr] || [];
+      if (children.length === 0) return;
+
+      const childWidths = children.map(cg => subtreeWidth(cg));
+      const totalChildW = childWidths.reduce((s, w) => s + w, 0)
+        + (children.length - 1) * CHILD_GAP;
+
+      let cursor = centerX - totalChildW / 2;
+      children.forEach((cg, i) => {
+        positionGroup(cg, cursor + childWidths[i] / 2, level + 1);
+        cursor += childWidths[i] + CHILD_GAP;
       });
     }
 
-    // ── 4. Normalize levels so minimum is 0 ─────────────────────────────
-    const minLevel = Math.min(...Object.values(level));
-    Object.keys(level).forEach(k => { level[k] -= minLevel; });
+    // Layout all root groups side by side, centred at x = 0
+    const rootList = [...rootGroups];
+    const rootWidths = rootList.map(rg => subtreeWidth(rg));
+    const totalRootW = rootWidths.reduce((s, w) => s + w, 0)
+      + Math.max(0, rootList.length - 1) * FAMILY_GAP;
 
-    // ── 5. Group nodes by level, keeping family units together ──────────
-    const levelGroups = {};
-    nodes.forEach(n => {
-      const lv = level[n.id] ?? 0;
-      if (!levelGroups[lv]) levelGroups[lv] = [];
-      levelGroups[lv].push(n.id);
+    let cursor = -totalRootW / 2;
+    rootList.forEach((rg, i) => {
+      positionGroup(rg, cursor + rootWidths[i] / 2, 0);
+      cursor += rootWidths[i] + FAMILY_GAP;
     });
 
-    // Within each level, sort so partner-units are contiguous
-    Object.keys(levelGroups).forEach(lv => {
-      levelGroups[lv].sort((a, b) => {
-        const ga = find(a);
-        const gb = find(b);
-        if (ga < gb) return -1;
-        if (ga > gb) return 1;
-        return 0;
-      });
-    });
-
-    // ── 6. Compute x/y positions ────────────────────────────────────────
-    const HORIZONTAL_GAP = 160;   // gap between nodes on the same level
-    const VERTICAL_GAP = 200;     // gap between levels
-    const PARTNER_GAP = 120;      // tighter gap between partners
-
-    const posMap = {};
-
-    const sortedLevels = Object.keys(levelGroups).map(Number).sort((a, b) => a - b);
-    sortedLevels.forEach(lv => {
-      const group = levelGroups[lv];
-
-      // Build sub-groups of partner-units
-      const subGroups = [];
-      let currentUnit = null;
-
-      group.forEach(nid => {
-        const root = find(nid);
-        if (!currentUnit || currentUnit.root !== root) {
-          currentUnit = { root, members: [] };
-          subGroups.push(currentUnit);
-        }
-        currentUnit.members.push(nid);
-      });
-
-      // Calculate total width of this level
-      let totalWidth = 0;
-      subGroups.forEach((sg, i) => {
-        totalWidth += (sg.members.length - 1) * PARTNER_GAP;
-        if (i > 0) totalWidth += HORIZONTAL_GAP;
-      });
-
-      // Center the level around x = 0
-      let cursor = -totalWidth / 2;
-      subGroups.forEach((sg, i) => {
-        if (i > 0) cursor += HORIZONTAL_GAP;
-        sg.members.forEach((nid, j) => {
-          if (j > 0) cursor += PARTNER_GAP;
-          posMap[nid] = { x: cursor, y: lv * VERTICAL_GAP };
-        });
-      });
-    });
-
-    // ── 7. Return updated nodes ─────────────────────────────────────────
+    // ── 6. Return updated nodes ────────────────────────────────────────
     return nodes.map(n => ({
       ...n,
       x: posMap[n.id]?.x ?? n.x,
