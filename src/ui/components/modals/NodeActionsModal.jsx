@@ -14,7 +14,15 @@ import {
   Waypoints,
 } from 'lucide-react';
 import Button from '../common/Button';
-import { COLORS, PARTNER_LABELS, PARENT_LABELS, TWIN_TYPES, isPartnerEdgeType, resolveEdgeLabel } from '../../../domain/config/constants';
+import {
+  COLORS,
+  PARTNER_LABELS,
+  PARENT_LABELS,
+  TWIN_TYPES,
+  ZODIAC_SIGNS,
+  isPartnerEdgeType,
+  resolveEdgeLabel,
+} from '../../../domain/config/constants';
 import { formatNodeDates } from '../../../domain/utils/dateUtils';
 
 export default function NodeActionsModal({
@@ -380,6 +388,46 @@ export default function NodeActionsModal({
                       value={formData.birthTime || ''}
                       onChange={e => setFormData({ ...formData, birthTime: e.target.value })}
                     />
+                  </div>
+                </div>
+
+                {/* Zodiac selectors */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ascendente</label>
+                    <select
+                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
+                      value={formData.ascendantSign || ''}
+                      onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
+                    >
+                      {ZODIAC_SIGNS.map(sign => (
+                        <option key={sign.value || 'empty'} value={sign.value}>{sign.icon}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sol</label>
+                    <select
+                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
+                      value={formData.sunSign || ''}
+                      onChange={e => setFormData({ ...formData, sunSign: e.target.value })}
+                    >
+                      {ZODIAC_SIGNS.map(sign => (
+                        <option key={`sun-${sign.value || 'empty'}`} value={sign.value}>{sign.icon}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Luna</label>
+                    <select
+                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
+                      value={formData.moonSign || ''}
+                      onChange={e => setFormData({ ...formData, moonSign: e.target.value })}
+                    >
+                      {ZODIAC_SIGNS.map(sign => (
+                        <option key={`moon-${sign.value || 'empty'}`} value={sign.value}>{sign.icon}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

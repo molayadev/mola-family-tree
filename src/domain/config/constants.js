@@ -73,6 +73,24 @@ export const TWIN_TYPES = [
   { value: 'fraternal', label: 'Mellizos (fraternos)' },
 ];
 
+// ── Zodiac constants ───────────────────────────────────────────────────
+
+export const ZODIAC_SIGNS = [
+  { value: '', icon: '--' },
+  { value: 'aries', icon: '♈' },
+  { value: 'taurus', icon: '♉' },
+  { value: 'gemini', icon: '♊' },
+  { value: 'cancer', icon: '♋' },
+  { value: 'leo', icon: '♌' },
+  { value: 'virgo', icon: '♍' },
+  { value: 'libra', icon: '♎' },
+  { value: 'scorpio', icon: '♏' },
+  { value: 'sagittarius', icon: '♐' },
+  { value: 'capricorn', icon: '♑' },
+  { value: 'aquarius', icon: '♒' },
+  { value: 'pisces', icon: '♓' },
+];
+
 // ── All possible bond/link values (superset) ─────────────────────────
 
 export const ALL_BOND_TYPES = [

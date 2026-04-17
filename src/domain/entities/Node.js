@@ -4,7 +4,23 @@ export const generateId = () => {
   return Array.from(array, b => b.toString(36).padStart(2, '0')).join('').slice(0, 9);
 };
 
-export function createNode({ id, x, y, firstName, lastName, gender, birthDate, birthTime, deathDate, twinType, birthOrder, additionalInfo }) {
+export function createNode({
+  id,
+  x,
+  y,
+  firstName,
+  lastName,
+  gender,
+  birthDate,
+  birthTime,
+  deathDate,
+  ascendantSign,
+  sunSign,
+  moonSign,
+  twinType,
+  birthOrder,
+  additionalInfo,
+}) {
   return {
     id: id || generateId(),
     x: x || 0,
@@ -16,6 +32,9 @@ export function createNode({ id, x, y, firstName, lastName, gender, birthDate, b
       birthDate: birthDate || '',
       birthTime: birthTime || '',
       deathDate: deathDate || '',
+      ascendantSign: ascendantSign || '',
+      sunSign: sunSign || '',
+      moonSign: moonSign || '',
       twinType: twinType || '',
       birthOrder: birthOrder || '',
       additionalInfo: additionalInfo || '',
