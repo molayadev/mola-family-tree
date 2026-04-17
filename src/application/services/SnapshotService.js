@@ -19,7 +19,7 @@ function buildEdgePath(edge, fromNode, toNode) {
 function getEdgeStyle(edge) {
   const isPartner = edge.type === 'spouse' || edge.type === 'ex_spouse' || edge.type === 'partner';
   const label = edge.label || (edge.type === 'ex_spouse' ? 'Divorciado' : (isPartner ? 'Casado/a' : 'Biológico'));
-  const isBroken = ['Divorciado', 'Separado/a', 'Anulación'].includes(label);
+  const isBroken = ['Divorciado', 'Separado/a', 'Progenitores'].includes(label);
   return {
     color: isPartner ? (isBroken ? '#9CA3AF' : '#F9A8D4') : '#CBD5E1',
     dash: isPartner ? (isBroken ? '5,5' : '0') : '0',

@@ -31,7 +31,7 @@ const COLORS = {
 
 const PARTNER_LABELS = [
   'Casado/a', 'Divorciado', 'Separado/a', 'Enviudado',
-  'Comprometido/a', 'Pareja', 'Amigos', 'Anulación', 'Desconocido', 'Otros'
+  'Comprometido/a', 'Pareja', 'Amigos', 'Progenitores', 'Desconocido', 'Otros'
 ];
 
 const PARENT_LABELS = [
@@ -1200,7 +1200,7 @@ export default function FamilyTreeApp() {
             }
 
             const currentLabel = edge.label || (edge.type === 'ex_spouse' ? 'Divorciado' : (isPartner ? 'Casado/a' : 'Biológico'));
-            const isBroken = ['Divorciado', 'Separado/a', 'Anulación'].includes(currentLabel);
+            const isBroken = ['Divorciado', 'Separado/a', 'Progenitores'].includes(currentLabel);
             
             const strokeColor = isPartner ? (isBroken ? '#9CA3AF' : '#F9A8D4') : '#CBD5E1';
             const strokeDash = isPartner ? (isBroken ? "5,5" : "0") : "0";

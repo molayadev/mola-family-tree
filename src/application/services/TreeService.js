@@ -191,7 +191,7 @@ export class TreeService {
   hasSpouse(edges, nodeId) {
     return edges.some(
       e => (e.from === nodeId || e.to === nodeId) && ['spouse', 'partner'].includes(e.type) &&
-        !['Divorciado', 'Separado/a', 'Anulación'].includes(e.label),
+        !['Divorciado', 'Separado/a', 'Progenitores'].includes(e.label),
     );
   }
 
