@@ -1,5 +1,6 @@
 import { createNode } from '../../domain/entities/Node';
 import { createEdge } from '../../domain/entities/Edge';
+import { EDGE_TYPES, PARTNER_EDGE_TYPES, isPartnerEdgeType, isBrokenLabel } from '../../domain/config/constants';
 
 export class TreeService {
   constructor(storageAdapter) {
@@ -31,9 +32,9 @@ export class TreeService {
 
     newNodes.push(father, mother);
     newEdges.push(
-      createEdge({ from: father.id, to: sourceNode.id, type: 'parent', label: 'Biológico' }),
-      createEdge({ from: mother.id, to: sourceNode.id, type: 'parent', label: 'Biológico' }),
-      createEdge({ from: father.id, to: mother.id, type: 'partner', label: 'Casado/a' }),
+      createEdge({ from: father.id, to: sourceNode.id, type: EDGE_TYPES.PARENT, label: 'Biológico' }),
+      createEdge({ from: mother.id, to: sourceNode.id, type: EDGE_TYPES.PARENT, label: 'Biológico' }),
+      createEdge({ from: father.id, to: mother.id, type: EDGE_TYPES.PARTNER, label: 'Casado/a' }),
     );
 
     return { nodes: newNodes, edges: newEdges };
@@ -66,10 +67,10 @@ export class TreeService {
     });
 
     newNodes.push(child);
-    newEdges.push(createEdge({ from: sourceId, to: child.id, type: 'parent', label: 'Biológico' }));
+    newEdges.push(createEdge({ from: sourceId, to: child.id, type: EDGE_TYPES.PARENT, label: 'Biológico' }));
 
     if (partnerId) {
-      newEdges.push(createEdge({ from: partnerId, to: child.id, type: 'parent', label: 'Biológico' }));
+      newEdges.push(createEdge({ from: partnerId, to: child.id, type: EDGE_TYPES.PARENT, label: 'Biológico' }));
     }
 
     return { nodes: newNodes, edges: newEdges };
@@ -77,7 +78,7 @@ export class TreeService {
 
   getPartnerOffset(edges, sourceId) {
     const existing = edges.filter(
-      e => (e.from === sourceId || e.to === sourceId) && ['spouse', 'ex_spouse', 'partner'].includes(e.type),
+      e => (e.from === sourceId || e.to === sourceId) && isPartnerEdgeType(e.type),
     ).length;
     const direction = existing % 2 === 0 ? 1 : -1;
     const multiplier = Math.floor(existing / 2) + 1;
@@ -97,7 +98,7 @@ export class TreeService {
     });
 
     newNodes.push(spouse);
-    newEdges.push(createEdge({ from: sourceNode.id, to: spouse.id, type: 'partner', label: 'Casado/a' }));
+    newEdges.push(createEdge({ from: sourceNode.id, to: spouse.id, type: EDGE_TYPES.PARTNER, label: 'Casado/a' }));
 
     return { nodes: newNodes, edges: newEdges };
   }
@@ -115,7 +116,7 @@ export class TreeService {
     });
 
     newNodes.push(exSpouse);
-    newEdges.push(createEdge({ from: sourceNode.id, to: exSpouse.id, type: 'partner', label: 'Divorciado' }));
+    newEdges.push(createEdge({ from: sourceNode.id, to: exSpouse.id, type: EDGE_TYPES.PARTNER, label: 'Divorciado' }));
 
     return { nodes: newNodes, edges: newEdges };
   }
@@ -133,7 +134,7 @@ export class TreeService {
 
   getPartners(edges, nodeId) {
     return edges
-      .filter(e => (e.from === nodeId || e.to === nodeId) && ['spouse', 'ex_spouse', 'partner'].includes(e.type))
+      .filter(e => (e.from === nodeId || e.to === nodeId) && isPartnerEdgeType(e.type))
       .map(e => (e.from === nodeId ? e.to : e.from));
   }
 
@@ -190,8 +191,9 @@ export class TreeService {
 
   hasSpouse(edges, nodeId) {
     return edges.some(
-      e => (e.from === nodeId || e.to === nodeId) && ['spouse', 'partner'].includes(e.type) &&
-        !['Divorciado', 'Separado/a', 'Progenitores'].includes(e.label),
+      e => (e.from === nodeId || e.to === nodeId) &&
+        [EDGE_TYPES.SPOUSE, EDGE_TYPES.PARTNER].includes(e.type) &&
+        !isBrokenLabel(e.label),
     );
   }
 
@@ -204,20 +206,21 @@ export class TreeService {
 
     if (type === 'child') {
       // "child" means target is child of source → parent edge from source to target
-      type = 'parent';
+      type = EDGE_TYPES.PARENT;
       from = sourceId;
       to = targetId;
       if (!label) label = 'Biológico';
     } else if (type === 'parent') {
       // "parent" means target is parent of source → parent edge from target to source
+      type = EDGE_TYPES.PARENT;
       from = targetId;
       to = sourceId;
       if (!label) label = 'Biológico';
-    } else if (type === 'spouse') {
-      type = 'partner';
+    } else if (type === EDGE_TYPES.SPOUSE) {
+      type = EDGE_TYPES.PARTNER;
       if (!label) label = 'Casado/a';
-    } else if (type === 'ex_spouse') {
-      type = 'partner';
+    } else if (type === EDGE_TYPES.EX_SPOUSE) {
+      type = EDGE_TYPES.PARTNER;
       if (!label) label = 'Divorciado';
     }
 

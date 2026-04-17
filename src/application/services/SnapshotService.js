@@ -1,3 +1,6 @@
+import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../domain/config/constants';
+import { formatNodeDates, isDeceased } from '../../domain/utils/dateUtils';
+
 const GENDER_COLORS = {
   male: { bg: '#DBEAFE', icon: '#2563EB' },
   female: { bg: '#FCE7F3', icon: '#DB2777' },
@@ -9,7 +12,7 @@ function buildEdgePath(edge, fromNode, toNode) {
     console.warn(`SnapshotService: missing node for edge ${edge.id} (from: ${edge.from}, to: ${edge.to})`);
     return '';
   }
-  const isPartner = edge.type === 'spouse' || edge.type === 'ex_spouse' || edge.type === 'partner';
+  const isPartner = isPartnerEdgeType(edge.type);
   if (isPartner) {
     return `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
   }
@@ -17,9 +20,9 @@ function buildEdgePath(edge, fromNode, toNode) {
 }
 
 function getEdgeStyle(edge) {
-  const isPartner = edge.type === 'spouse' || edge.type === 'ex_spouse' || edge.type === 'partner';
-  const label = edge.label || (edge.type === 'ex_spouse' ? 'Divorciado' : (isPartner ? 'Casado/a' : 'Biológico'));
-  const isBroken = ['Divorciado', 'Separado/a', 'Progenitores'].includes(label);
+  const isPartner = isPartnerEdgeType(edge.type);
+  const label = resolveEdgeLabel(edge);
+  const isBroken = isBrokenLabel(label);
   return {
     color: isPartner ? (isBroken ? '#9CA3AF' : '#F9A8D4') : '#CBD5E1',
     dash: isPartner ? (isBroken ? '5,5' : '0') : '0',
@@ -67,23 +70,30 @@ function buildTreeSvg(nodes, edges, padding = 80) {
 
   // Nodes
   nodes.forEach(node => {
-    const colors = GENDER_COLORS[node.data.gender] || GENDER_COLORS.unknown;
+    const deceased = isDeceased(node.data);
+    const colors = deceased
+      ? { bg: '#E5E7EB', icon: '#9CA3AF' }
+      : (GENDER_COLORS[node.data.gender] || GENDER_COLORS.unknown);
     svg += `<g transform="translate(${node.x}, ${node.y})">`;
     // Shadow
     svg += `<circle r="32" fill="black" opacity="0.1" cy="4"/>`;
     // Main circle
     svg += `<circle r="30" fill="${colors.bg}" stroke="white" stroke-width="3"/>`;
+    // Diagonal cross for deceased
+    if (deceased) {
+      svg += `<line x1="-20" y1="-20" x2="20" y2="20" stroke="#9CA3AF" stroke-width="1.5" opacity="0.5"/>`;
+      svg += `<line x1="20" y1="-20" x2="-20" y2="20" stroke="#9CA3AF" stroke-width="1.5" opacity="0.5"/>`;
+    }
     // User icon (simplified person icon)
     svg += `<g transform="translate(0, 0)" fill="none" stroke="${colors.icon}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">`;
     svg += `<path d="M-4,-8 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0"/>`;
     svg += `<path d="M-8,8 C-8,2 -4,-1 0,-1 C4,-1 8,2 8,8"/>`;
     svg += `</g>`;
     // Name
-    svg += `<text y="48" text-anchor="middle" font-size="10" font-weight="bold" fill="#374151" font-family="sans-serif" text-transform="uppercase" letter-spacing="0.05em">${escapeXml(node.data.firstName || '')}</text>`;
+    const nameFill = deceased ? '#9CA3AF' : '#374151';
+    svg += `<text y="48" text-anchor="middle" font-size="10" font-weight="bold" fill="${nameFill}" font-family="sans-serif" text-transform="uppercase" letter-spacing="0.05em">${escapeXml(node.data.firstName || '')}</text>`;
     // Dates
-    const dateText = node.data.deathYear
-      ? `${node.data.birthYear || '?'} - ${node.data.deathYear}`
-      : (node.data.birthYear || '');
+    const dateText = formatNodeDates(node.data);
     if (dateText) {
       svg += `<text y="60" text-anchor="middle" font-size="9" fill="#6B7280" font-family="sans-serif">${escapeXml(dateText)}</text>`;
     }
