@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Move } from 'lucide-react';
 import { useCanvas } from '../../../application/hooks/useCanvas';
+import { downloadTreeSnapshot } from '../../../application/services/SnapshotService';
 import CanvasHUD from './CanvasHUD';
 import ZoomControls from './ZoomControls';
 import FamilyNode from './FamilyNode';
@@ -125,6 +126,10 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     exportService.exportTree(username, nodes, edges);
   }, [username, nodes, edges, exportService]);
 
+  const handleSnapshot = useCallback(() => {
+    downloadTreeSnapshot(username, nodes, edges);
+  }, [username, nodes, edges]);
+
   const actionsModalNode = useMemo(() => nodes.find(n => n.id === actionsModal.nodeId), [nodes, actionsModal.nodeId]);
 
   return (
@@ -151,6 +156,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
         zoom={transform.k}
         onFitToScreen={() => fitToScreen(nodes)}
         onExport={handleExport}
+        onSnapshot={handleSnapshot}
         onLogout={onLogout}
       />
 
