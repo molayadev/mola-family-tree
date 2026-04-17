@@ -204,7 +204,7 @@ export class TreeService {
   }
 
   /**
-   * Organise every node in the tree by generation level.
+   * Organize every node in the tree by generation level.
    * Parents sit above their children; partners share the same row.
    * Returns a new nodes array with updated x/y positions.
    */
@@ -234,7 +234,10 @@ export class TreeService {
     const parent = {};
     const find = (a) => {
       if (parent[a] === undefined) parent[a] = a;
-      while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; }
+      while (parent[a] !== a) {
+        parent[a] = parent[parent[a]];
+        a = parent[a];
+      }
       return a;
     };
     const union = (a, b) => { parent[find(a)] = find(b); };
