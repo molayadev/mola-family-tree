@@ -12,9 +12,11 @@ import {
   ChevronDown,
   User,
   Waypoints,
+  Wand2,
 } from 'lucide-react';
 import Button from '../common/Button';
 import DateSelector from '../common/DateSelector';
+import CollapsibleFieldset from '../common/CollapsibleFieldset';
 import {
   COLORS,
   PARTNER_LABELS,
@@ -25,6 +27,7 @@ import {
   resolveEdgeLabel,
 } from '../../../domain/config/constants';
 import { formatNodeDates, calculateAge } from '../../../domain/utils/dateUtils';
+import useZodiac from '../../../application/hooks/useZodiac';
 
 export default function NodeActionsModal({
   node,
@@ -47,6 +50,8 @@ export default function NodeActionsModal({
   const [activeTab, setActiveTab] = useState(initialTab || null);
   const [formData, setFormData] = useState(() => node ? { ...node.data } : {});
   const [localExpandedId, setLocalExpandedId] = useState(initialExpandedEdgeId || null);
+  const [zodiacAlert, setZodiacAlert] = useState(null);
+  const { calculateZodiac } = useZodiac();
   // Guard: prevent accidental taps on quick-action buttons right after the modal opens
   const readyRef = useRef(false);
 
@@ -332,10 +337,29 @@ export default function NodeActionsModal({
             )}
 
             {/* Edit Tab */}
-            {activeTab === 'edit' && (
+            {activeTab === 'edit' && (() => {
+              const age = calculateAge(formData.birthDate, formData.deathDate);
+              const ageBadge = age !== null
+                ? (formData.deathDate ? `(✝ ${age} años)` : `(${age} años)`)
+                : '(--)';
+
+              const handleAutoZodiac = () => {
+                const { sunSign, moonSign, ascendantSign, errors } = calculateZodiac(formData);
+                const updates = {};
+                if (sunSign) updates.sunSign = sunSign;
+                if (moonSign) updates.moonSign = moonSign;
+                if (ascendantSign) updates.ascendantSign = ascendantSign;
+                if (Object.keys(updates).length > 0) {
+                  setFormData(prev => ({ ...prev, ...updates }));
+                }
+                setZodiacAlert(errors.length > 0 ? errors : null);
+              };
+
+              return (
               <div className="p-4 space-y-4">
                 <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Editar perfil</p>
 
+                {/* ── Always visible: Nombre, Apellido, Género ── */}
                 <div className="flex gap-4">
                   <div className="w-1/2">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre</label>
@@ -355,20 +379,13 @@ export default function NodeActionsModal({
                   </div>
                 </div>
 
-                {/* Age label */}
-                {(() => {
-                  const age = calculateAge(formData.birthDate, formData.deathDate);
-                  if (age === null) return null;
-                  const label = formData.deathDate ? `Falleció con ${age} años` : `${age} años`;
-                  return <p className="text-sm text-orange-600 font-semibold -mt-2">{label}</p>;
-                })()}
-
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Género</label>
                   <div className="flex gap-2">
                     {['male', 'female', 'unknown'].map(g => (
                       <button
                         key={g}
+                        type="button"
                         onClick={() => setFormData({ ...formData, gender: g })}
                         className={`flex-1 py-2 rounded-lg text-sm border transition-colors ${formData.gender === g ? 'bg-orange-100 border-orange-500 text-orange-700 font-bold shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
@@ -378,13 +395,18 @@ export default function NodeActionsModal({
                   </div>
                 </div>
 
-                {/* Birth date & time */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-gray-500 uppercase">Fecha de Nacimiento</label>
-                  <DateSelector
-                    value={formData.birthDate || ''}
-                    onChange={v => setFormData({ ...formData, birthDate: v })}
-                  />
+                {/* ── Collapsible: Nacimiento y Fallecimiento ── */}
+                <CollapsibleFieldset label="Nacimiento y Fallecimiento" badge={ageBadge}>
+                  {/* Birth date */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase">Fecha de Nacimiento</label>
+                    <DateSelector
+                      value={formData.birthDate || ''}
+                      onChange={v => setFormData({ ...formData, birthDate: v })}
+                    />
+                  </div>
+
+                  {/* Birth time */}
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hora de Nacimiento</label>
                     <input
@@ -394,91 +416,151 @@ export default function NodeActionsModal({
                       onChange={e => setFormData({ ...formData, birthTime: e.target.value })}
                     />
                   </div>
-                </div>
 
-                {/* Zodiac selectors */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ascendente</label>
-                    <select
-                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
-                      value={formData.ascendantSign || ''}
-                      aria-label="Seleccionar signo ascendente"
-                      onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
-                    >
-                      {ZODIAC_SIGNS.map(sign => (
-                        <option key={sign.value || 'empty'} value={sign.value} aria-label={sign.label} title={sign.label}>{sign.icon}</option>
-                      ))}
-                    </select>
+                  {/* Location (lat, lon) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Latitud</label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="-90"
+                        max="90"
+                        className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+                        value={formData.birthLatitude ?? ''}
+                        onChange={e => setFormData({ ...formData, birthLatitude: e.target.value })}
+                        placeholder="Ej: 40.4168"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Longitud</label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="-180"
+                        max="180"
+                        className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+                        value={formData.birthLongitude ?? ''}
+                        onChange={e => setFormData({ ...formData, birthLongitude: e.target.value })}
+                        placeholder="Ej: -3.7038"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sol</label>
-                    <select
-                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
-                      value={formData.sunSign || ''}
-                      aria-label="Seleccionar signo solar"
-                      onChange={e => setFormData({ ...formData, sunSign: e.target.value })}
-                    >
-                      {ZODIAC_SIGNS.map(sign => (
-                        <option key={`sun-${sign.value || 'empty'}`} value={sign.value} aria-label={sign.label} title={sign.label}>{sign.icon}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Luna</label>
-                    <select
-                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
-                      value={formData.moonSign || ''}
-                      aria-label="Seleccionar signo lunar"
-                      onChange={e => setFormData({ ...formData, moonSign: e.target.value })}
-                    >
-                      {ZODIAC_SIGNS.map(sign => (
-                        <option key={`moon-${sign.value || 'empty'}`} value={sign.value} aria-label={sign.label} title={sign.label}>{sign.icon}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
 
-                {/* Death date */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Fallecimiento</label>
-                  <DateSelector
-                    value={formData.deathDate || ''}
-                    onChange={v => setFormData({ ...formData, deathDate: v })}
-                  />
-                </div>
+                  {/* Zodiac signs row + magic wand button */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-gray-500 uppercase">Signos Zodiacales</label>
+                      <button
+                        type="button"
+                        onClick={handleAutoZodiac}
+                        className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-700 transition-colors"
+                        title="Calcular automáticamente"
+                      >
+                        <Wand2 className="w-4 h-4" />
+                        <span>Auto</span>
+                      </button>
+                    </div>
 
-                {/* Twin / multiple birth */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Gemelo / Mellizo</label>
-                    <select
-                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
-                      value={formData.twinType || ''}
-                      onChange={e => setFormData({ ...formData, twinType: e.target.value })}
-                    >
-                      {TWIN_TYPES.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
+                    {/* Alert banner */}
+                    {zodiacAlert && (
+                      <div className="mb-2 p-2 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-800">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold mb-0.5">Datos insuficientes:</p>
+                            <ul className="list-disc list-inside space-y-0.5">
+                              {zodiacAlert.map((err, i) => <li key={i}>{err}</li>)}
+                            </ul>
+                          </div>
+                          <button type="button" onClick={() => setZodiacAlert(null)} className="text-amber-500 hover:text-amber-700 font-bold shrink-0">✕</button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Ascendente</label>
+                        <select
+                          className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                          value={formData.ascendantSign || ''}
+                          aria-label="Seleccionar signo ascendente"
+                          onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
+                        >
+                          {ZODIAC_SIGNS.map(sign => (
+                            <option key={sign.value || 'empty'} value={sign.value} title={sign.label}>{sign.icon} {sign.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Sol</label>
+                        <select
+                          className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                          value={formData.sunSign || ''}
+                          aria-label="Seleccionar signo solar"
+                          onChange={e => setFormData({ ...formData, sunSign: e.target.value })}
+                        >
+                          {ZODIAC_SIGNS.map(sign => (
+                            <option key={`sun-${sign.value || 'empty'}`} value={sign.value} title={sign.label}>{sign.icon} {sign.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Luna</label>
+                        <select
+                          className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                          value={formData.moonSign || ''}
+                          aria-label="Seleccionar signo lunar"
+                          onChange={e => setFormData({ ...formData, moonSign: e.target.value })}
+                        >
+                          {ZODIAC_SIGNS.map(sign => (
+                            <option key={`moon-${sign.value || 'empty'}`} value={sign.value} title={sign.label}>{sign.icon} {sign.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Death date */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Orden de Nacimiento</label>
-                    <input
-                      type="number"
-                      min="1"
-                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
-                      value={formData.birthOrder || ''}
-                      onChange={e => setFormData({ ...formData, birthOrder: e.target.value })}
-                      placeholder={formData.twinType ? 'Ej. 1, 2...' : 'Selecciona tipo primero'}
-                      disabled={!formData.twinType}
-                      title={!formData.twinType ? 'Selecciona un tipo de gemelo/mellizo primero' : ''}
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Fallecimiento</label>
+                    <DateSelector
+                      value={formData.deathDate || ''}
+                      onChange={v => setFormData({ ...formData, deathDate: v })}
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Notas / Detalles (Opcional)</label>
+                  {/* Twin / multiple birth */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Gemelo / Mellizo</label>
+                      <select
+                        className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
+                        value={formData.twinType || ''}
+                        onChange={e => setFormData({ ...formData, twinType: e.target.value })}
+                      >
+                        {TWIN_TYPES.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Orden Nacimiento</label>
+                      <input
+                        type="number"
+                        min="1"
+                        className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+                        value={formData.birthOrder || ''}
+                        onChange={e => setFormData({ ...formData, birthOrder: e.target.value })}
+                        placeholder={formData.twinType ? 'Ej. 1, 2...' : '--'}
+                        disabled={!formData.twinType}
+                        title={!formData.twinType ? 'Selecciona un tipo de gemelo/mellizo primero' : ''}
+                      />
+                    </div>
+                  </div>
+                </CollapsibleFieldset>
+
+                {/* ── Collapsible: Más información ── */}
+                <CollapsibleFieldset label="Más información">
                   <textarea
                     className="w-full p-3 rounded-lg border border-orange-200 focus:ring-2 focus:ring-orange-300 outline-none resize-none text-sm text-gray-600"
                     rows="3"
@@ -486,11 +568,12 @@ export default function NodeActionsModal({
                     onChange={e => setFormData({ ...formData, additionalInfo: e.target.value })}
                     placeholder="Nacionalidad, salud, anécdotas, profesión..."
                   />
-                </div>
+                </CollapsibleFieldset>
 
                 <Button className="w-full" onClick={() => onSaveEdit(node.id, formData)}>Guardar Cambios</Button>
               </div>
-            )}
+              );
+            })()}
 
             {/* Delete Tab */}
             {activeTab === 'delete' && (

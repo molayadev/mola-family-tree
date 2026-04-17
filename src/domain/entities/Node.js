@@ -19,6 +19,8 @@ export function createNode({
   moonSign,
   twinType,
   birthOrder,
+  birthLatitude,
+  birthLongitude,
   additionalInfo,
 }) {
   return {
@@ -37,6 +39,8 @@ export function createNode({
       moonSign: moonSign || '',
       twinType: twinType || '',
       birthOrder: birthOrder || '',
+      birthLatitude: birthLatitude || '',
+      birthLongitude: birthLongitude || '',
       additionalInfo: additionalInfo || '',
     },
   };
