@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   X,
   ArrowDown,
@@ -31,10 +31,24 @@ export default function NodeActionsModal({
   onDeleteLink,
   initialTab,
   initialExpandedEdgeId,
+  // Restriction flags
+  hasParents,
+  hasSpouse,
 }) {
   const [activeTab, setActiveTab] = useState(initialTab || null);
   const [formData, setFormData] = useState(() => node ? { ...node.data } : {});
   const [localExpandedId, setLocalExpandedId] = useState(initialExpandedEdgeId || null);
+  // Guard: prevent accidental taps on quick-action buttons right after the modal opens
+  const readyRef = useRef(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      readyRef.current = false;
+      const timer = setTimeout(() => { readyRef.current = true; }, 350);
+      return () => clearTimeout(timer);
+    }
+    readyRef.current = false;
+  }, [isOpen]);
 
   if (!isOpen || !node) return null;
 
@@ -42,6 +56,7 @@ export default function NodeActionsModal({
   const nodeEdges = edges.filter(e => e.from === nodeId || e.to === nodeId);
 
   const handleQuickAction = (action) => {
+    if (!readyRef.current) return; // Ignore accidental taps before guard expires
     onAction(action);
   };
 
@@ -98,6 +113,8 @@ export default function NodeActionsModal({
 
   const quickBtnClass = 'flex flex-col items-center justify-center gap-1 p-3 rounded-2xl border-2 transition-all active:scale-95 min-w-0 flex-1';
 
+  const disabledBtnClass = 'flex flex-col items-center justify-center gap-1 p-3 rounded-2xl border-2 transition-all min-w-0 flex-1 opacity-40 cursor-not-allowed';
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
@@ -145,18 +162,22 @@ export default function NodeActionsModal({
               <span className="text-[10px] font-bold text-gray-600">Hijo</span>
             </button>
             <button
-              className={`${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
-              onClick={() => handleQuickAction('add_parents')}
+              className={hasParents ? disabledBtnClass + ' border-gray-200 bg-gray-50' : `${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
+              onClick={() => !hasParents && handleQuickAction('add_parents')}
+              disabled={hasParents}
+              title={hasParents ? 'Ya tiene padres registrados' : ''}
             >
-              <ArrowUp size={22} className="text-orange-500" />
-              <span className="text-[10px] font-bold text-gray-600">Padres</span>
+              <ArrowUp size={22} className={hasParents ? 'text-gray-300' : 'text-orange-500'} />
+              <span className="text-[10px] font-bold text-gray-600">{hasParents ? 'Ya tiene' : 'Padres'}</span>
             </button>
             <button
-              className={`${quickBtnClass} border-pink-200 bg-white hover:bg-pink-50 hover:border-pink-400`}
-              onClick={() => handleQuickAction('add_spouse')}
+              className={hasSpouse ? disabledBtnClass + ' border-gray-200 bg-gray-50' : `${quickBtnClass} border-pink-200 bg-white hover:bg-pink-50 hover:border-pink-400`}
+              onClick={() => !hasSpouse && handleQuickAction('add_spouse')}
+              disabled={hasSpouse}
+              title={hasSpouse ? 'Ya tiene cónyuge registrado' : ''}
             >
-              <Heart size={22} className="text-pink-500" />
-              <span className="text-[10px] font-bold text-gray-600">Esposa</span>
+              <Heart size={22} className={hasSpouse ? 'text-gray-300' : 'text-pink-500'} />
+              <span className="text-[10px] font-bold text-gray-600">{hasSpouse ? 'Ya tiene' : 'Esposa'}</span>
             </button>
             <button
               className={`${quickBtnClass} border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-400`}

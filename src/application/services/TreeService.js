@@ -197,6 +197,12 @@ export class TreeService {
     );
   }
 
+  hasParents(edges, nodeId) {
+    return edges.some(
+      e => e.to === nodeId && e.type === EDGE_TYPES.PARENT,
+    );
+  }
+
   linkNodes(edges, sourceId, targetId, linkType, linkLabel) {
     const newEdges = [...edges];
     let from = sourceId;
