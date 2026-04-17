@@ -147,6 +147,12 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     downloadTreeSnapshot(username, nodes, edges);
   }, [username, nodes, edges]);
 
+  const handleOrganize = useCallback(() => {
+    const organizedNodes = treeService.organizeByLevels(nodes, edges);
+    saveAndUpdate(organizedNodes, edges);
+    setTimeout(() => fitToScreen(organizedNodes), 100);
+  }, [nodes, edges, treeService, saveAndUpdate, fitToScreen]);
+
   // ---- Linking mode ----
   const cancelLinkingMode = useCallback(() => {
     setLinkingMode(null);
@@ -225,6 +231,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
         nodeCount={nodes.length}
         zoom={transform.k}
         onFitToScreen={() => fitToScreen(nodes)}
+        onOrganize={handleOrganize}
         onExport={handleExport}
         onSnapshot={handleSnapshot}
         onLogout={onLogout}
