@@ -69,8 +69,8 @@ export const LINK_TYPES = [
 
 export const TWIN_TYPES = [
   { value: '', label: 'Ninguno' },
-  { value: 'twins', label: 'Gemelos (idénticos)' },
-  { value: 'fraternal', label: 'Mellizos (fraternos)' },
+  { value: 'twins', label: 'Gemelos' },
+  { value: 'fraternal', label: 'Mellizos' },
 ];
 
 // ── All possible bond/link values (superset) ─────────────────────────

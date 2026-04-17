@@ -1,4 +1,3 @@
-import { User } from 'lucide-react';
 import { COLORS } from '../../../domain/config/constants';
 import { formatNodeDates, isDeceased } from '../../../domain/utils/dateUtils';
 
@@ -7,6 +6,46 @@ const TWIN_BADGE = {
   twins:      { fill: '#7C3AED', label: '=' },   // purple – identical twins
   fraternal:  { fill: '#0D9488', label: '≈' },   // teal   – fraternal twins
 };
+
+/** Male silhouette SVG (short hair, broader shoulders) */
+function MaleIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} width="24" height="24">
+      <circle cx="12" cy="7" r="4" />
+      <path d="M8 7c0-3 1.5-5 4-5s4 2 4 5" />
+      <path d="M5.5 21c0-4 2.9-7.5 6.5-7.5s6.5 3.5 6.5 7.5" />
+    </svg>
+  );
+}
+
+/** Female silhouette SVG (longer hair, dress shape) */
+function FemaleIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} width="24" height="24">
+      <circle cx="12" cy="7" r="4" />
+      <path d="M7 7c-.5-2 0-5 5-5s5.5 3 5 5" />
+      <path d="M7 7c-1 2-1 4 0 6" />
+      <path d="M17 7c1 2 1 4 0 6" />
+      <path d="M5 21l3-8h8l3 8" />
+    </svg>
+  );
+}
+
+/** Unknown/neutral silhouette SVG */
+function UnknownIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} width="24" height="24">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M6 21c0-4 2.7-7 6-7s6 3 6 7" />
+    </svg>
+  );
+}
+
+function GenderIcon({ gender, className }) {
+  if (gender === 'male') return <MaleIcon className={className} />;
+  if (gender === 'female') return <FemaleIcon className={className} />;
+  return <UnknownIcon className={className} />;
+}
 
 export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, onPointerDown }) {
   const deceased = isDeceased(node.data);
@@ -46,7 +85,7 @@ export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, o
 
       <foreignObject x="-20" y="-20" width="40" height="40" className="pointer-events-none">
         <div className={`w-full h-full flex items-center justify-center ${isDimmed ? 'text-gray-400' : (deceased ? 'text-gray-400' : style.icon)}`}>
-          <User size={24} strokeWidth={2.5} />
+          <GenderIcon gender={node.data.gender} className="w-6 h-6" />
         </div>
       </foreignObject>
 
