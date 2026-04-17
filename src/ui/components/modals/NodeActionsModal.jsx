@@ -162,22 +162,22 @@ export default function NodeActionsModal({
               <span className="text-[10px] font-bold text-gray-600">Hijo</span>
             </button>
             <button
-              className={hasParents ? disabledBtnClass + ' border-gray-200 bg-gray-50' : `${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
+              className={hasParents ? `${disabledBtnClass} border-gray-200 bg-gray-50` : `${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
               onClick={() => !hasParents && handleQuickAction('add_parents')}
               disabled={hasParents}
               title={hasParents ? 'Ya tiene padres registrados' : ''}
             >
               <ArrowUp size={22} className={hasParents ? 'text-gray-300' : 'text-orange-500'} />
-              <span className="text-[10px] font-bold text-gray-600">{hasParents ? 'Ya tiene' : 'Padres'}</span>
+              <span className="text-[10px] font-bold text-gray-600">{hasParents ? 'Tiene padres' : 'Padres'}</span>
             </button>
             <button
-              className={hasSpouse ? disabledBtnClass + ' border-gray-200 bg-gray-50' : `${quickBtnClass} border-pink-200 bg-white hover:bg-pink-50 hover:border-pink-400`}
+              className={hasSpouse ? `${disabledBtnClass} border-gray-200 bg-gray-50` : `${quickBtnClass} border-pink-200 bg-white hover:bg-pink-50 hover:border-pink-400`}
               onClick={() => !hasSpouse && handleQuickAction('add_spouse')}
               disabled={hasSpouse}
               title={hasSpouse ? 'Ya tiene cónyuge registrado' : ''}
             >
               <Heart size={22} className={hasSpouse ? 'text-gray-300' : 'text-pink-500'} />
-              <span className="text-[10px] font-bold text-gray-600">{hasSpouse ? 'Ya tiene' : 'Esposa'}</span>
+              <span className="text-[10px] font-bold text-gray-600">{hasSpouse ? 'Tiene pareja' : 'Esposa'}</span>
             </button>
             <button
               className={`${quickBtnClass} border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-400`}
