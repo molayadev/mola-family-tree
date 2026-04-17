@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link as LinkIcon, MoreHorizontal, Trash2, Edit2, ChevronDown, User } from 'lucide-react';
 import Button from '../common/Button';
 import WheelPicker from '../common/WheelPicker';
@@ -10,11 +10,7 @@ const PARENT_LABEL_OPTIONS = PARENT_LABELS.map(l => ({ value: l, label: l }));
 
 export default function LinksModal({ state, onClose, nodes, edges, onUpdateLink, onDeleteLink }) {
   const { isOpen, nodeId, expandedEdgeId } = state;
-  const [localExpandedId, setLocalExpandedId] = useState(null);
-
-  useEffect(() => {
-    if (isOpen) setLocalExpandedId(expandedEdgeId);
-  }, [isOpen, expandedEdgeId]);
+  const [localExpandedId, setLocalExpandedId] = useState(() => expandedEdgeId ?? null);
 
   if (!isOpen || !nodeId) return null;
 

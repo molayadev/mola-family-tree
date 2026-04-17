@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MoreHorizontal, Wand2 } from 'lucide-react';
 import Button from '../common/Button';
 import DateSelector from '../common/DateSelector';
@@ -14,13 +14,9 @@ const ZODIAC_OPTIONS = ZODIAC_SIGNS.map(z => ({ value: z.value, label: z.label, 
 const TWIN_OPTIONS = TWIN_TYPES.map(t => ({ value: t.value, label: t.label }));
 
 export default function EditModal({ node, isOpen, onClose, onSave }) {
-  const [formData, setFormData] = useState({ ...node?.data });
+  const [formData, setFormData] = useState(() => node ? { ...node.data } : {});
   const [zodiacAlert, setZodiacAlert] = useState(null);
   const { calculateZodiac } = useZodiac();
-
-  useEffect(() => {
-    if (node) setFormData({ ...node.data });
-  }, [node]);
 
   if (!isOpen) return null;
 
