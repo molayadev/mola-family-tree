@@ -11,8 +11,11 @@ const TWIN_BADGE = {
 function MaleIcon({ className }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} width="24" height="24">
+      {/* Head */}
       <circle cx="12" cy="7" r="4" />
+      {/* Short hair */}
       <path d="M8 7c0-3 1.5-5 4-5s4 2 4 5" />
+      {/* Shoulders / torso */}
       <path d="M5.5 21c0-4 2.9-7.5 6.5-7.5s6.5 3.5 6.5 7.5" />
     </svg>
   );
@@ -22,10 +25,15 @@ function MaleIcon({ className }) {
 function FemaleIcon({ className }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} width="24" height="24">
+      {/* Head */}
       <circle cx="12" cy="7" r="4" />
+      {/* Long hair falling from top */}
       <path d="M7 7c-.5-2 0-5 5-5s5.5 3 5 5" />
+      {/* Hair strands left */}
       <path d="M7 7c-1 2-1 4 0 6" />
+      {/* Hair strands right */}
       <path d="M17 7c1 2 1 4 0 6" />
+      {/* Dress / skirt silhouette */}
       <path d="M5 21l3-8h8l3 8" />
     </svg>
   );
