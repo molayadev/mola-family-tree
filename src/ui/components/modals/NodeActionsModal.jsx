@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import Button from '../common/Button';
 import DateSelector from '../common/DateSelector';
+import TimeWheelSelector from '../common/TimeWheelSelector';
+import WheelPicker from '../common/WheelPicker';
 import CollapsibleFieldset from '../common/CollapsibleFieldset';
 import {
   COLORS,
@@ -28,6 +30,12 @@ import {
 } from '../../../domain/config/constants';
 import { formatNodeDates, calculateAge } from '../../../domain/utils/dateUtils';
 import useZodiac from '../../../application/hooks/useZodiac';
+
+// Pre-mapped option arrays for WheelPicker (avoids re-creating on every render)
+const ZODIAC_OPTIONS = ZODIAC_SIGNS.map(z => ({ value: z.value, label: z.label, icon: z.icon }));
+const TWIN_OPTIONS = TWIN_TYPES.map(t => ({ value: t.value, label: t.label }));
+const PARTNER_LABEL_OPTIONS = PARTNER_LABELS.map(l => ({ value: l, label: l }));
+const PARENT_LABEL_OPTIONS = PARENT_LABELS.map(l => ({ value: l, label: l }));
 
 export default function NodeActionsModal({
   node,
@@ -280,15 +288,11 @@ export default function NodeActionsModal({
                           <div className="p-4 pt-0 border-t border-gray-50 bg-gray-50/50 space-y-4 animate-in slide-in-from-top-2">
                             <div>
                               <label className="block text-xs font-bold text-gray-500 mb-1">Estado de la Relación</label>
-                              <select
-                                className="w-full p-2.5 rounded-xl border border-gray-200 focus:border-purple-400 outline-none text-sm text-gray-700 bg-white shadow-sm"
+                              <WheelPicker
+                                options={isPartner ? PARTNER_LABEL_OPTIONS : PARENT_LABEL_OPTIONS}
                                 value={currentLabel}
-                                onChange={(e) => onUpdateLink(edge.id, { label: e.target.value })}
-                              >
-                                {(isPartner ? PARTNER_LABELS : PARENT_LABELS).map(l => (
-                                  <option key={l} value={l}>{l}</option>
-                                ))}
-                              </select>
+                                onChange={(v) => onUpdateLink(edge.id, { label: v })}
+                              />
                             </div>
 
                             <div>
@@ -409,11 +413,9 @@ export default function NodeActionsModal({
                   {/* Birth time */}
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hora de Nacimiento</label>
-                    <input
-                      type="time"
-                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+                    <TimeWheelSelector
                       value={formData.birthTime || ''}
-                      onChange={e => setFormData({ ...formData, birthTime: e.target.value })}
+                      onChange={v => setFormData({ ...formData, birthTime: v })}
                     />
                   </div>
 
@@ -480,42 +482,27 @@ export default function NodeActionsModal({
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Sol</label>
-                        <select
-                          className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                        <WheelPicker
+                          options={ZODIAC_OPTIONS}
                           value={formData.sunSign || ''}
-                          aria-label="Seleccionar signo solar"
-                          onChange={e => setFormData({ ...formData, sunSign: e.target.value })}
-                        >
-                          {ZODIAC_SIGNS.map(sign => (
-                            <option key={`sun-${sign.value || 'empty'}`} value={sign.value} title={sign.label}>{sign.icon} {sign.label}</option>
-                          ))}
-                        </select>
+                          onChange={v => setFormData({ ...formData, sunSign: v })}
+                        />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Luna</label>
-                        <select
-                          className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                        <WheelPicker
+                          options={ZODIAC_OPTIONS}
                           value={formData.moonSign || ''}
-                          aria-label="Seleccionar signo lunar"
-                          onChange={e => setFormData({ ...formData, moonSign: e.target.value })}
-                        >
-                          {ZODIAC_SIGNS.map(sign => (
-                            <option key={`moon-${sign.value || 'empty'}`} value={sign.value} title={sign.label}>{sign.icon} {sign.label}</option>
-                          ))}
-                        </select>
+                          onChange={v => setFormData({ ...formData, moonSign: v })}
+                        />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Ascendente</label>
-                        <select
-                          className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                        <WheelPicker
+                          options={ZODIAC_OPTIONS}
                           value={formData.ascendantSign || ''}
-                          aria-label="Seleccionar signo ascendente"
-                          onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
-                        >
-                          {ZODIAC_SIGNS.map(sign => (
-                            <option key={sign.value || 'empty'} value={sign.value} title={sign.label}>{sign.icon} {sign.label}</option>
-                          ))}
-                        </select>
+                          onChange={v => setFormData({ ...formData, ascendantSign: v })}
+                        />
                       </div>
                     </div>
                   </div>
@@ -533,15 +520,11 @@ export default function NodeActionsModal({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Gemelo / Mellizo</label>
-                      <select
-                        className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white"
+                      <WheelPicker
+                        options={TWIN_OPTIONS}
                         value={formData.twinType || ''}
-                        onChange={e => setFormData({ ...formData, twinType: e.target.value })}
-                      >
-                        {TWIN_TYPES.map(t => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
+                        onChange={v => setFormData({ ...formData, twinType: v })}
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Orden Nacimiento</label>
