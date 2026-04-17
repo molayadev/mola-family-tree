@@ -2,6 +2,12 @@ import { User } from 'lucide-react';
 import { COLORS } from '../../../domain/config/constants';
 import { formatNodeDates, isDeceased } from '../../../domain/utils/dateUtils';
 
+/** Small badge colours per twin type */
+const TWIN_BADGE = {
+  twins:      { fill: '#7C3AED', label: '=' },   // purple – identical twins
+  fraternal:  { fill: '#0D9488', label: '≈' },   // teal   – fraternal twins
+};
+
 export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, onPointerDown }) {
   const deceased = isDeceased(node.data);
   const style = COLORS[node.data.gender] || COLORS.unknown;
@@ -11,6 +17,7 @@ export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, o
   else if (isLinkTarget) strokeClass = 'stroke-green-500 stroke-[4px]';
 
   const dateText = formatNodeDates(node.data);
+  const twinBadge = node.data.twinType ? TWIN_BADGE[node.data.twinType] : null;
 
   return (
     <g
@@ -42,6 +49,16 @@ export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, o
           <User size={24} strokeWidth={2.5} />
         </div>
       </foreignObject>
+
+      {/* Twin / fraternal badge */}
+      {twinBadge && !isDimmed && (
+        <g>
+          <circle cx="22" cy="-22" r="10" fill={twinBadge.fill} stroke="white" strokeWidth="2" />
+          <text x="22" y="-18" textAnchor="middle" fill="white" className="text-[11px] font-bold pointer-events-none">
+            {twinBadge.label}
+          </text>
+        </g>
+      )}
 
       <text y="48" textAnchor="middle" className={`text-[10px] font-bold uppercase tracking-wider pointer-events-none ${deceased ? 'fill-gray-400' : 'fill-gray-700'}`}>
         {node.data.firstName}
