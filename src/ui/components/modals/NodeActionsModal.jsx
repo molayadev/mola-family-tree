@@ -479,19 +479,6 @@ export default function NodeActionsModal({
 
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Ascendente</label>
-                        <select
-                          className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
-                          value={formData.ascendantSign || ''}
-                          aria-label="Seleccionar signo ascendente"
-                          onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
-                        >
-                          {ZODIAC_SIGNS.map(sign => (
-                            <option key={sign.value || 'empty'} value={sign.value} title={sign.label}>{sign.icon} {sign.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
                         <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Sol</label>
                         <select
                           className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
@@ -514,6 +501,19 @@ export default function NodeActionsModal({
                         >
                           {ZODIAC_SIGNS.map(sign => (
                             <option key={`moon-${sign.value || 'empty'}`} value={sign.value} title={sign.label}>{sign.icon} {sign.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Ascendente</label>
+                        <select
+                          className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                          value={formData.ascendantSign || ''}
+                          aria-label="Seleccionar signo ascendente"
+                          onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
+                        >
+                          {ZODIAC_SIGNS.map(sign => (
+                            <option key={sign.value || 'empty'} value={sign.value} title={sign.label}>{sign.icon} {sign.label}</option>
                           ))}
                         </select>
                       </div>

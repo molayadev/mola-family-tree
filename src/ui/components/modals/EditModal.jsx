@@ -173,18 +173,6 @@ export default function EditModal({ node, isOpen, onClose, onSave }) {
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Ascendente</label>
-                  <select
-                    className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
-                    value={formData.ascendantSign || ''}
-                    onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
-                  >
-                    {ZODIAC_SIGNS.map(z => (
-                      <option key={z.value} value={z.value}>{z.icon} {z.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
                   <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Sol</label>
                   <select
                     className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
@@ -202,6 +190,18 @@ export default function EditModal({ node, isOpen, onClose, onSave }) {
                     className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
                     value={formData.moonSign || ''}
                     onChange={e => setFormData({ ...formData, moonSign: e.target.value })}
+                  >
+                    {ZODIAC_SIGNS.map(z => (
+                      <option key={z.value} value={z.value}>{z.icon} {z.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Ascendente</label>
+                  <select
+                    className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm bg-white text-center"
+                    value={formData.ascendantSign || ''}
+                    onChange={e => setFormData({ ...formData, ascendantSign: e.target.value })}
                   >
                     {ZODIAC_SIGNS.map(z => (
                       <option key={z.value} value={z.value}>{z.icon} {z.label}</option>
