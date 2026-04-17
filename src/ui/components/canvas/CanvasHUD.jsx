@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Target, Download, LogOut, Menu, X, Camera } from 'lucide-react';
+import { Target, Download, LogOut, Menu, X, Camera, LayoutGrid, Minimize2, Maximize2 } from 'lucide-react';
 
-export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onExport, onSnapshot, onLogout }) {
+export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onOrganize, onExport, onSnapshot, onLogout, hasFamilies, hasCollapsed, onToggleCollapseAll }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen(prev => !prev);
@@ -25,6 +25,14 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
           <button onClick={onFitToScreen} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Centrar Vista">
             <Target size={20} className="text-gray-600" />
           </button>
+          <button onClick={onOrganize} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Organizar por niveles">
+            <LayoutGrid size={20} className="text-gray-600" />
+          </button>
+          {hasFamilies && (
+            <button onClick={onToggleCollapseAll} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title={hasCollapsed ? 'Expandir familias' : 'Colapsar familias'}>
+              {hasCollapsed ? <Maximize2 size={20} className="text-gray-600" /> : <Minimize2 size={20} className="text-gray-600" />}
+            </button>
+          )}
           <button onClick={onSnapshot} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Descargar imagen">
             <Camera size={20} className="text-gray-600" />
           </button>
@@ -69,6 +77,24 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
                 <Target size={18} className="text-gray-600" />
                 <span className="text-sm text-gray-700">Centrar vista</span>
               </button>
+
+              <button
+                onClick={() => handleAction(onOrganize)}
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left"
+              >
+                <LayoutGrid size={18} className="text-gray-600" />
+                <span className="text-sm text-gray-700">Organizar por niveles</span>
+              </button>
+
+              {hasFamilies && (
+                <button
+                  onClick={() => handleAction(onToggleCollapseAll)}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left"
+                >
+                  {hasCollapsed ? <Maximize2 size={18} className="text-gray-600" /> : <Minimize2 size={18} className="text-gray-600" />}
+                  <span className="text-sm text-gray-700">{hasCollapsed ? 'Expandir familias' : 'Colapsar familias'}</span>
+                </button>
+              )}
 
               <button
                 onClick={() => handleAction(onSnapshot)}

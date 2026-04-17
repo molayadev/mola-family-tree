@@ -14,6 +14,7 @@ import {
   Waypoints,
 } from 'lucide-react';
 import Button from '../common/Button';
+import DateSelector from '../common/DateSelector';
 import {
   COLORS,
   PARTNER_LABELS,
@@ -23,7 +24,7 @@ import {
   isPartnerEdgeType,
   resolveEdgeLabel,
 } from '../../../domain/config/constants';
-import { formatNodeDates } from '../../../domain/utils/dateUtils';
+import { formatNodeDates, calculateAge } from '../../../domain/utils/dateUtils';
 
 export default function NodeActionsModal({
   node,
@@ -354,6 +355,14 @@ export default function NodeActionsModal({
                   </div>
                 </div>
 
+                {/* Age label */}
+                {(() => {
+                  const age = calculateAge(formData.birthDate, formData.deathDate);
+                  if (age === null) return null;
+                  const label = formData.deathDate ? `Falleció con ${age} años` : `${age} años`;
+                  return <p className="text-sm text-orange-600 font-semibold -mt-2">{label}</p>;
+                })()}
+
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Género</label>
                   <div className="flex gap-2">
@@ -370,16 +379,12 @@ export default function NodeActionsModal({
                 </div>
 
                 {/* Birth date & time */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Nacimiento</label>
-                    <input
-                      type="date"
-                      className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
-                      value={formData.birthDate || ''}
-                      onChange={e => setFormData({ ...formData, birthDate: e.target.value })}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase">Fecha de Nacimiento</label>
+                  <DateSelector
+                    value={formData.birthDate || ''}
+                    onChange={v => setFormData({ ...formData, birthDate: v })}
+                  />
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hora de Nacimiento</label>
                     <input
@@ -437,11 +442,9 @@ export default function NodeActionsModal({
                 {/* Death date */}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Fallecimiento</label>
-                  <input
-                    type="date"
-                    className="w-full p-2 rounded-lg border border-orange-200 outline-none text-sm"
+                  <DateSelector
                     value={formData.deathDate || ''}
-                    onChange={e => setFormData({ ...formData, deathDate: e.target.value })}
+                    onChange={v => setFormData({ ...formData, deathDate: v })}
                   />
                 </div>
 
