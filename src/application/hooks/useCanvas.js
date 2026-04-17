@@ -13,6 +13,8 @@ export function useCanvas() {
     hasMovedNode: false,
     initialDistance: 0,
     initialScale: 1,
+    lastTouchEndTime: 0,       // Prevents synthesised mouse events after touch
+    lastNodeSelectTime: 0,     // Debounce guard for node selection
   });
 
   const fitToScreen = useCallback((nodes) => {
@@ -141,17 +143,24 @@ export function useCanvas() {
   }, []);
 
   const handleTouchEnd = useCallback((onSave, onSelectNode) => {
+    stateRef.current.lastTouchEndTime = Date.now();
     if (stateRef.current.mode === 'dragNode') {
       if (stateRef.current.hasMovedNode) {
         onSave();
       } else {
-        onSelectNode(stateRef.current.dragNodeId);
+        const now = Date.now();
+        if (now - stateRef.current.lastNodeSelectTime > 400) {
+          stateRef.current.lastNodeSelectTime = now;
+          onSelectNode(stateRef.current.dragNodeId);
+        }
       }
     }
     stateRef.current.mode = 'idle';
   }, []);
 
   const handleMouseDown = useCallback((e, transformVal) => {
+    // Ignore synthesised mouse events that follow a recent touch
+    if (Date.now() - stateRef.current.lastTouchEndTime < 500) return {};
     if (e.target === canvasRef.current || e.target.tagName === 'svg') {
       stateRef.current.mode = 'pan';
       stateRef.current.startX = e.clientX;
@@ -188,17 +197,28 @@ export function useCanvas() {
   }, []);
 
   const handleMouseUp = useCallback((onSave, onSelectNode) => {
+    // Ignore synthesised mouse events that follow a recent touch
+    if (Date.now() - stateRef.current.lastTouchEndTime < 500) {
+      stateRef.current.mode = 'idle';
+      return;
+    }
     if (stateRef.current.mode === 'dragNode') {
       if (stateRef.current.hasMovedNode) {
         onSave();
       } else {
-        onSelectNode(stateRef.current.dragNodeId);
+        const now = Date.now();
+        if (now - stateRef.current.lastNodeSelectTime > 400) {
+          stateRef.current.lastNodeSelectTime = now;
+          onSelectNode(stateRef.current.dragNodeId);
+        }
       }
     }
     stateRef.current.mode = 'idle';
   }, []);
 
   const handleNodePointerDown = useCallback((e, nodeId, nodes) => {
+    // Ignore synthesised mouse events that follow a recent touch
+    if (e.type === 'mousedown' && Date.now() - stateRef.current.lastTouchEndTime < 500) return;
     e.stopPropagation();
     e.preventDefault();
     const node = nodes.find(n => n.id === nodeId);

@@ -83,6 +83,8 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     const sourceNode = nodes.find(n => n.id === nodeId);
 
     if (action === 'add_parents') {
+      // Guard: skip if node already has parents
+      if (treeService.hasParents(edges, nodeId)) return;
       const result = treeService.addParents(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
@@ -98,6 +100,8 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
       closeActionsModal();
       return;
     } else if (action === 'add_spouse') {
+      // Guard: skip if node already has a current spouse
+      if (treeService.hasSpouse(edges, nodeId)) return;
       const result = treeService.addSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
@@ -188,6 +192,16 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
 
   const actionsModalNode = useMemo(() => nodes.find(n => n.id === actionsModal.nodeId), [nodes, actionsModal.nodeId]);
 
+  const actionsModalHasParents = useMemo(() => {
+    if (!actionsModal.nodeId) return false;
+    return treeService.hasParents(edges, actionsModal.nodeId);
+  }, [actionsModal.nodeId, edges, treeService]);
+
+  const actionsModalHasSpouse = useMemo(() => {
+    if (!actionsModal.nodeId) return false;
+    return treeService.hasSpouse(edges, actionsModal.nodeId);
+  }, [actionsModal.nodeId, edges, treeService]);
+
   return (
     <div
       className="h-screen w-screen bg-[#F3F0EB] overflow-hidden relative font-sans text-gray-700 selection:bg-orange-200 touch-none"
@@ -231,6 +245,8 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
         onDeleteLink={handleDeleteLink}
         initialTab={actionsModal.initialTab}
         initialExpandedEdgeId={actionsModal.expandedEdgeId}
+        hasParents={actionsModalHasParents}
+        hasSpouse={actionsModalHasSpouse}
       />
 
       <PartnerSelectionModal
