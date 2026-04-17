@@ -1,8 +1,10 @@
+import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../../domain/config/constants';
+
 export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
   if (!fromNode || !toNode) return null;
 
   let d = '';
-  const isPartner = edge.type === 'spouse' || edge.type === 'ex_spouse' || edge.type === 'partner';
+  const isPartner = isPartnerEdgeType(edge.type);
 
   if (isPartner) {
     d = `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
@@ -10,8 +12,8 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
     d = `M ${fromNode.x} ${fromNode.y} C ${fromNode.x} ${fromNode.y + 75}, ${toNode.x} ${toNode.y - 75}, ${toNode.x} ${toNode.y}`;
   }
 
-  const currentLabel = edge.label || (edge.type === 'ex_spouse' ? 'Divorciado' : (isPartner ? 'Casado/a' : 'Biológico'));
-  const isBroken = ['Divorciado', 'Separado/a', 'Progenitores'].includes(currentLabel);
+  const currentLabel = resolveEdgeLabel(edge);
+  const isBroken = isBrokenLabel(currentLabel);
 
   const strokeColor = isPartner ? (isBroken ? '#9CA3AF' : '#F9A8D4') : '#CBD5E1';
   const strokeDash = isPartner ? (isBroken ? '5,5' : '0') : '0';

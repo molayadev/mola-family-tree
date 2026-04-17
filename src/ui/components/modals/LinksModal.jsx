@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link as LinkIcon, MoreHorizontal, Trash2, Edit2, ChevronDown, User } from 'lucide-react';
 import Button from '../common/Button';
-import { COLORS, PARTNER_LABELS, PARENT_LABELS } from '../../../domain/config/constants';
+import { COLORS, PARTNER_LABELS, PARENT_LABELS, isPartnerEdgeType, resolveEdgeLabel } from '../../../domain/config/constants';
 
 export default function LinksModal({ state, onClose, nodes, edges, onUpdateLink, onDeleteLink }) {
   const { isOpen, nodeId, expandedEdgeId } = state;
@@ -23,8 +23,8 @@ export default function LinksModal({ state, onClose, nodes, edges, onUpdateLink,
 
     if (!targetNode) return null;
 
-    const isPartner = edge.type === 'spouse' || edge.type === 'ex_spouse' || edge.type === 'partner';
-    const currentLabel = edge.label || (edge.type === 'ex_spouse' ? 'Divorciado' : (isPartner ? 'Casado/a' : 'Biológico'));
+    const isPartner = isPartnerEdgeType(edge.type);
+    const currentLabel = resolveEdgeLabel(edge);
 
     let displayTitle = currentLabel;
     const g = targetNode.data.gender;
@@ -50,7 +50,7 @@ export default function LinksModal({ state, onClose, nodes, edges, onUpdateLink,
 
     otherParentsEdges.forEach(opEdge => {
       const otherParentId = opEdge.from;
-      const partners = edges.filter(e => (e.from === otherParentId || e.to === otherParentId) && ['spouse', 'ex_spouse', 'partner'].includes(e.type));
+      const partners = edges.filter(e => (e.from === otherParentId || e.to === otherParentId) && isPartnerEdgeType(e.type));
       partners.forEach(pEdge => {
         const partnerId = pEdge.from === otherParentId ? pEdge.to : pEdge.from;
         if (partnerId !== edgeToEdit.from) {

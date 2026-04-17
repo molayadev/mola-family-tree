@@ -14,7 +14,7 @@ import {
   Waypoints,
 } from 'lucide-react';
 import Button from '../common/Button';
-import { COLORS, PARTNER_LABELS, PARENT_LABELS } from '../../../domain/config/constants';
+import { COLORS, PARTNER_LABELS, PARENT_LABELS, isPartnerEdgeType, resolveEdgeLabel, PARTNER_EDGE_TYPES } from '../../../domain/config/constants';
 
 export default function NodeActionsModal({
   node,
@@ -59,8 +59,8 @@ export default function NodeActionsModal({
     const targetNode = nodes.find(n => n.id === targetId);
     if (!targetNode) return null;
 
-    const isPartner = edge.type === 'spouse' || edge.type === 'ex_spouse' || edge.type === 'partner';
-    const currentLabel = edge.label || (edge.type === 'ex_spouse' ? 'Divorciado' : (isPartner ? 'Casado/a' : 'Biológico'));
+    const isPartner = isPartnerEdgeType(edge.type);
+    const currentLabel = resolveEdgeLabel(edge);
 
     let displayTitle = currentLabel;
     const g = targetNode.data.gender;
@@ -84,7 +84,7 @@ export default function NodeActionsModal({
     let suggestions = [];
     otherParentsEdges.forEach(opEdge => {
       const otherParentId = opEdge.from;
-      const partners = edges.filter(e => (e.from === otherParentId || e.to === otherParentId) && ['spouse', 'ex_spouse', 'partner'].includes(e.type));
+      const partners = edges.filter(e => (e.from === otherParentId || e.to === otherParentId) && isPartnerEdgeType(e.type));
       partners.forEach(pEdge => {
         const partnerId = pEdge.from === otherParentId ? pEdge.to : pEdge.from;
         if (partnerId !== edgeToEdit.from) {

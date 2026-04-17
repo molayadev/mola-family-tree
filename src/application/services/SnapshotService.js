@@ -1,3 +1,5 @@
+import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../domain/config/constants';
+
 const GENDER_COLORS = {
   male: { bg: '#DBEAFE', icon: '#2563EB' },
   female: { bg: '#FCE7F3', icon: '#DB2777' },
@@ -9,7 +11,7 @@ function buildEdgePath(edge, fromNode, toNode) {
     console.warn(`SnapshotService: missing node for edge ${edge.id} (from: ${edge.from}, to: ${edge.to})`);
     return '';
   }
-  const isPartner = edge.type === 'spouse' || edge.type === 'ex_spouse' || edge.type === 'partner';
+  const isPartner = isPartnerEdgeType(edge.type);
   if (isPartner) {
     return `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
   }
@@ -17,9 +19,9 @@ function buildEdgePath(edge, fromNode, toNode) {
 }
 
 function getEdgeStyle(edge) {
-  const isPartner = edge.type === 'spouse' || edge.type === 'ex_spouse' || edge.type === 'partner';
-  const label = edge.label || (edge.type === 'ex_spouse' ? 'Divorciado' : (isPartner ? 'Casado/a' : 'Biológico'));
-  const isBroken = ['Divorciado', 'Separado/a', 'Progenitores'].includes(label);
+  const isPartner = isPartnerEdgeType(edge.type);
+  const label = resolveEdgeLabel(edge);
+  const isBroken = isBrokenLabel(label);
   return {
     color: isPartner ? (isBroken ? '#9CA3AF' : '#F9A8D4') : '#CBD5E1',
     dash: isPartner ? (isBroken ? '5,5' : '0') : '0',
