@@ -187,4 +187,41 @@ export class TreeService {
   deleteLink(edges, edgeId) {
     return edges.filter(e => e.id !== edgeId);
   }
+
+  hasSpouse(edges, nodeId) {
+    return edges.some(
+      e => (e.from === nodeId || e.to === nodeId) && ['spouse', 'partner'].includes(e.type) &&
+        !['Divorciado', 'Separado/a', 'Anulación'].includes(e.label),
+    );
+  }
+
+  linkNodes(edges, sourceId, targetId, linkType, linkLabel) {
+    const newEdges = [...edges];
+    let from = sourceId;
+    let to = targetId;
+    let type = linkType;
+    let label = linkLabel;
+
+    if (type === 'child') {
+      // "child" means target is child of source → parent edge from source to target
+      type = 'parent';
+      from = sourceId;
+      to = targetId;
+      if (!label) label = 'Biológico';
+    } else if (type === 'parent') {
+      // "parent" means target is parent of source → parent edge from target to source
+      from = targetId;
+      to = sourceId;
+      if (!label) label = 'Biológico';
+    } else if (type === 'spouse') {
+      type = 'partner';
+      if (!label) label = 'Casado/a';
+    } else if (type === 'ex_spouse') {
+      type = 'partner';
+      if (!label) label = 'Divorciado';
+    }
+
+    newEdges.push(createEdge({ from, to, type, label }));
+    return newEdges;
+  }
 }
