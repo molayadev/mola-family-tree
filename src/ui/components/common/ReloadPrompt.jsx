@@ -1,8 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
+const POLL_INTERVAL_MS = 60 * 1000;   // check every 60 s
+const POLL_DURATION_MS = 5 * 60 * 1000; // stop after 5 min
+
 export default function ReloadPrompt() {
   const intervalRef = useRef(null);
+  const timeoutRef = useRef(null);
 
   const {
     needRefresh: [needRefresh],
@@ -10,19 +14,25 @@ export default function ReloadPrompt() {
   } = useRegisterSW({
     onRegisteredSW(swUrl, registration) {
       if (registration) {
-        // Check for updates every 60 seconds
+        // Poll for updates every 60 s, but only during the first 5 minutes
         intervalRef.current = setInterval(() => {
           registration.update();
-        }, 60 * 1000);
+        }, POLL_INTERVAL_MS);
+
+        timeoutRef.current = setTimeout(() => {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+        }, POLL_DURATION_MS);
       }
     },
   });
 
   useEffect(() => {
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
