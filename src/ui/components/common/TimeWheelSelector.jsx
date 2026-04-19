@@ -47,6 +47,11 @@ export default function TimeWheelSelector({ value, onChange, icon = Clock3 }) {
     setDraftValue(value || '');
     setIsOpen(true);
   };
+  const onInputKeyDown = (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    open();
+  };
   const display = value || '';
 
   return (
@@ -54,9 +59,12 @@ export default function TimeWheelSelector({ value, onChange, icon = Clock3 }) {
       <div className="flex items-center gap-2">
         <input
           readOnly
+          role="button"
+          tabIndex={0}
           aria-label={`Hora seleccionada: ${display || 'ninguna'}`}
           value={display || 'HH:mm'}
           onClick={open}
+          onKeyDown={onInputKeyDown}
           className={`flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm ${display ? 'text-gray-700' : 'text-gray-400'}`}
         />
         {Icon && (

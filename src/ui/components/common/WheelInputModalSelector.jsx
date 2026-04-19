@@ -37,15 +37,25 @@ export default function WheelInputModalSelector({
     onChange(draftValue);
     close();
   };
+  const onInputKeyDown = (e) => {
+    if (!canOpenModal) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    open();
+  };
 
   return (
     <>
       <div className={`flex items-center gap-2 ${className}`}>
         <input
           readOnly
+          role="button"
+          tabIndex={canOpenModal ? 0 : -1}
+          aria-disabled={!canOpenModal}
           aria-label={`${title}: ${resolvedDisplayValue || placeholder}`}
           value={resolvedDisplayValue || placeholder}
           onClick={open}
+          onKeyDown={onInputKeyDown}
           className={`flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm ${
             resolvedDisplayValue ? 'text-gray-700' : 'text-gray-400'
           } ${canOpenModal ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
