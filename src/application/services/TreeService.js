@@ -343,7 +343,7 @@ export class TreeService {
           return;
         }
 
-        const minCenterDistance = ((groupWidth[previousGroup] + groupWidth[gr]) / 2) + GROUP_GAP;
+        const minCenterDistance = (((groupWidth[previousGroup] ?? 0) + (groupWidth[gr] ?? 0)) / 2) + GROUP_GAP;
         const minPos = groupX[previousGroup] + minCenterDistance;
         groupX[gr] = Math.max(desired, minPos);
         previousGroup = gr;
