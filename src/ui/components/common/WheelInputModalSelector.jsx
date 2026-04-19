@@ -19,6 +19,7 @@ export default function WheelInputModalSelector({
 
   const Icon = icon;
   const canOpenModal = options.length > 0;
+  const hasIconButton = Boolean(Icon);
 
   const resolvedDisplayValue = useMemo(() => {
     if (displayValue) return displayValue;
@@ -46,7 +47,7 @@ export default function WheelInputModalSelector({
 
   return (
     <>
-      <div className={`flex items-center gap-2 ${className}`}>
+      <div className={`w-full flex items-center ${hasIconButton ? 'gap-2' : ''} ${className}`}>
         <input
           readOnly
           role="button"
@@ -56,12 +57,12 @@ export default function WheelInputModalSelector({
           value={resolvedDisplayValue || placeholder}
           onClick={canOpenModal ? open : undefined}
           onKeyDown={onInputKeyDown}
-          className={`flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm ${
+          className={`w-full min-w-0 flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm ${
             resolvedDisplayValue ? 'text-gray-700' : 'text-gray-400'
           } ${canOpenModal ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
         />
 
-        {Icon && (
+        {hasIconButton && (
           <button
             type="button"
             onClick={open}

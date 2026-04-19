@@ -221,12 +221,16 @@ export class TreeService {
 
     /** Horizontal spacing between partners in the same group. */
     const PARTNER_GAP = 110;
+    /** Approximate node diameter used to keep groups from overlapping. */
+    const NODE_WIDTH = 64;
     /** Vertical spacing between family generations. */
     const LEVEL_H = 190;
     /** Horizontal spacing between groups that share a level. */
     const GROUP_GAP = 170;
     /** Horizontal spacing between disconnected family components. */
     const FAMILY_GAP = 260;
+    /** Small Y offset for couples in descendant levels to improve readability. */
+    const PARTNER_DIAGONAL_OFFSET = 26;
 
     const childrenOf = {};
     const parentsOf = {};
@@ -307,7 +311,7 @@ export class TreeService {
         return sum + (node?.x ?? 0);
       }, 0) / members.length;
       groupX[gr] = avgX;
-      groupWidth[gr] = Math.max((members.length - 1) * PARTNER_GAP, 0);
+      groupWidth[gr] = NODE_WIDTH + Math.max((members.length - 1) * PARTNER_GAP, 0);
     });
     groupX[anchorGroup] = 0;
 
@@ -350,21 +354,47 @@ export class TreeService {
       });
     });
 
+    const calculateMaxGroupRightEdge = () => Math.max(
+      ...allGroups.map(gr => (groupX[gr] ?? 0) + ((groupWidth[gr] ?? NODE_WIDTH) / 2)),
+      0,
+    );
+
     const disconnected = allGroups.filter(gr => !componentGroups.has(gr));
-    let disconnectedCursor = Math.max(...Object.values(groupX), 0) + FAMILY_GAP;
+    let disconnectedCursor = calculateMaxGroupRightEdge() + FAMILY_GAP;
     disconnected.forEach((gr) => {
       groupLevel[gr] = 0;
-      groupX[gr] = disconnectedCursor;
-      disconnectedCursor += FAMILY_GAP;
+      const width = groupWidth[gr] ?? NODE_WIDTH;
+      groupX[gr] = disconnectedCursor + (width / 2);
+      disconnectedCursor += width + FAMILY_GAP;
     });
 
+    // Preserve existing horizontal ordering within each partner group before we assign new positions.
+    const nodeXMap = new Map(nodes.map(n => [n.id, n.x]));
     const posMap = {};
     allGroups.forEach((gr) => {
-      const members = groupMembers[gr];
+      const members = [...groupMembers[gr]].sort((a, b) => {
+        const ax = nodeXMap.get(a) ?? 0;
+        const bx = nodeXMap.get(b) ?? 0;
+        return ax - bx;
+      });
       const centerX = groupX[gr] ?? 0;
-      const y = (groupLevel[gr] ?? 0) * LEVEL_H;
+      const baseY = (groupLevel[gr] ?? 0) * LEVEL_H;
+      let hasIncomingParent = false;
+      let hasOutgoingChild = false;
+      members.forEach((id) => {
+        if ((parentsOf[id]?.length ?? 0) > 0) hasIncomingParent = true;
+        if ((childrenOf[id]?.length ?? 0) > 0) hasOutgoingChild = true;
+      });
+      const shouldUseDiagonalPartners = members.length > 1 && hasIncomingParent && hasOutgoingChild;
       const startX = centerX - ((members.length - 1) * PARTNER_GAP) / 2;
       members.forEach((memberId, index) => {
+        let y = baseY;
+        if (shouldUseDiagonalPartners) {
+          // Offset partners around the same level center to draw couples diagonally and
+          // reduce visual collisions with parent-child connectors.
+          const midpoint = (members.length - 1) / 2;
+          y = baseY + ((index - midpoint) * PARTNER_DIAGONAL_OFFSET);
+        }
         posMap[memberId] = { x: startX + (index * PARTNER_GAP), y };
       });
     });
