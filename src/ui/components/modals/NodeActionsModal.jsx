@@ -531,6 +531,7 @@ export default function NodeActionsModal({
                           onChange={v => setFormData({ ...formData, sunSign: v })}
                           title="Signo solar"
                           placeholder="Sin signo"
+                          icon={null}
                         />
                       </div>
                       <div>
@@ -541,6 +542,7 @@ export default function NodeActionsModal({
                           onChange={v => setFormData({ ...formData, moonSign: v })}
                           title="Signo lunar"
                           placeholder="Sin signo"
+                          icon={null}
                         />
                       </div>
                       <div>
@@ -551,6 +553,7 @@ export default function NodeActionsModal({
                           onChange={v => setFormData({ ...formData, ascendantSign: v })}
                           title="Signo ascendente"
                           placeholder="Sin signo"
+                          icon={null}
                         />
                       </div>
                     </div>
@@ -575,6 +578,7 @@ export default function NodeActionsModal({
                         onChange={v => setFormData({ ...formData, twinType: v })}
                         title="Gemelo / Mellizo"
                         placeholder="Ninguno"
+                        icon={null}
                       />
                     </div>
                     <div>

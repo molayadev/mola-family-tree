@@ -78,6 +78,10 @@ export default function DateSelector({ value, onChange, minYear = 1900, maxYear,
   const handleYear = (v) => setDraftValue(buildDate(day, month, v));
 
   const Icon = icon;
+  const open = () => {
+    setDraftValue(value || '');
+    setIsOpen(true);
+  };
   const display = value
     ? `${day || 'dd'}/${month ? MONTHS[Number(month) - 1]?.toLowerCase() : 'mmm'}/${year || 'yyyy'}`
     : '';
@@ -89,16 +93,14 @@ export default function DateSelector({ value, onChange, minYear = 1900, maxYear,
           readOnly
           aria-label={`Fecha seleccionada: ${display || 'ninguna'}`}
           value={display || 'dd/mmm/yyyy'}
+          onClick={open}
           className={`flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm ${display ? 'text-gray-700' : 'text-gray-400'}`}
         />
 
         {Icon && (
           <button
             type="button"
-            onClick={() => {
-              setDraftValue(value || '');
-              setIsOpen(true);
-            }}
+            onClick={open}
             className="shrink-0 w-10 h-10 rounded-lg border border-orange-200 bg-white hover:bg-orange-50 text-orange-500 flex items-center justify-center transition-colors"
             title="Seleccionar fecha"
           >
@@ -107,7 +109,7 @@ export default function DateSelector({ value, onChange, minYear = 1900, maxYear,
         )}
       </div>
 
-      {isOpen && Icon && (
+      {isOpen && (
         <div
           className="fixed inset-0 z-[140] bg-black/40 backdrop-blur-sm p-4 flex items-center justify-center"
           onClick={() => setIsOpen(false)}

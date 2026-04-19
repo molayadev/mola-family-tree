@@ -18,7 +18,7 @@ export default function WheelInputModalSelector({
   const [draftValue, setDraftValue] = useState(value ?? '');
 
   const Icon = icon;
-  const canOpenModal = Boolean(Icon);
+  const canOpenModal = options.length > 0;
 
   const resolvedDisplayValue = useMemo(() => {
     if (displayValue) return displayValue;
@@ -45,10 +45,13 @@ export default function WheelInputModalSelector({
           readOnly
           aria-label={`${title}: ${resolvedDisplayValue || placeholder}`}
           value={resolvedDisplayValue || placeholder}
-          className="flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm text-gray-700"
+          onClick={open}
+          className={`flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm ${
+            resolvedDisplayValue ? 'text-gray-700' : 'text-gray-400'
+          } ${canOpenModal ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
         />
 
-        {canOpenModal && (
+        {Icon && canOpenModal && (
           <button
             type="button"
             onClick={open}

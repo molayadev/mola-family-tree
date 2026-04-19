@@ -43,6 +43,10 @@ export default function TimeWheelSelector({ value, onChange, icon = Clock3 }) {
   const handleHour = (v) => setDraftValue(buildTime(v, minute));
   const handleMinute = (v) => setDraftValue(buildTime(hour, v));
   const Icon = icon;
+  const open = () => {
+    setDraftValue(value || '');
+    setIsOpen(true);
+  };
   const display = value || '';
 
   return (
@@ -52,15 +56,13 @@ export default function TimeWheelSelector({ value, onChange, icon = Clock3 }) {
           readOnly
           aria-label={`Hora seleccionada: ${display || 'ninguna'}`}
           value={display || 'HH:mm'}
+          onClick={open}
           className={`flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm ${display ? 'text-gray-700' : 'text-gray-400'}`}
         />
         {Icon && (
           <button
             type="button"
-            onClick={() => {
-              setDraftValue(value || '');
-              setIsOpen(true);
-            }}
+            onClick={open}
             className="shrink-0 w-10 h-10 rounded-lg border border-orange-200 bg-white hover:bg-orange-50 text-orange-500 flex items-center justify-center transition-colors"
             title="Seleccionar hora"
           >
@@ -69,7 +71,7 @@ export default function TimeWheelSelector({ value, onChange, icon = Clock3 }) {
         )}
       </div>
 
-      {isOpen && Icon && (
+      {isOpen && (
         <div
           className="fixed inset-0 z-[140] bg-black/40 backdrop-blur-sm p-4 flex items-center justify-center"
           onClick={() => setIsOpen(false)}
