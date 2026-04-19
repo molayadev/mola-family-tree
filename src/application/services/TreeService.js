@@ -368,6 +368,7 @@ export class TreeService {
       disconnectedCursor += width + FAMILY_GAP;
     });
 
+    // Preserve existing horizontal ordering within each partner group before we assign new positions.
     const nodeXMap = new Map(nodes.map(n => [n.id, n.x]));
     const posMap = {};
     allGroups.forEach((gr) => {
@@ -378,13 +379,19 @@ export class TreeService {
       });
       const centerX = groupX[gr] ?? 0;
       const baseY = (groupLevel[gr] ?? 0) * LEVEL_H;
-      const shouldUseDiagonalPartners = members.length > 1
-        && members.some(id => (parentsOf[id]?.length ?? 0) > 0)
-        && members.some(id => (childrenOf[id]?.length ?? 0) > 0);
+      let hasIncomingParent = false;
+      let hasOutgoingChild = false;
+      members.forEach((id) => {
+        if ((parentsOf[id]?.length ?? 0) > 0) hasIncomingParent = true;
+        if ((childrenOf[id]?.length ?? 0) > 0) hasOutgoingChild = true;
+      });
+      const shouldUseDiagonalPartners = members.length > 1 && hasIncomingParent && hasOutgoingChild;
       const startX = centerX - ((members.length - 1) * PARTNER_GAP) / 2;
       members.forEach((memberId, index) => {
         let y = baseY;
         if (shouldUseDiagonalPartners) {
+          // Offset partners around the same level center to draw couples diagonally and
+          // reduce visual collisions with parent-child connectors.
           const midpoint = (members.length - 1) / 2;
           y = baseY + ((index - midpoint) * PARTNER_DIAGONAL_OFFSET);
         }
