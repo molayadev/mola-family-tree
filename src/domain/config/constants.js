@@ -14,6 +14,7 @@ export const EDGE_TYPES = {
   PARTNER: 'partner',
   SPOUSE: 'spouse',
   EX_SPOUSE: 'ex_spouse',
+  SIBLING: 'sibling',
 };
 
 /** All edge type values that represent a partner-like relationship */
@@ -33,6 +34,10 @@ export const PARENT_LABELS = [
   'Biológico', 'Adoptivo', 'Padrastro/Madrastra', 'Guarda legal', 'Desconocido',
 ];
 
+export const SIBLING_LABELS = [
+  'Hermano/a', 'Medio hermano/a', 'Hermanastro/a', 'Desconocido',
+];
+
 /** Labels that indicate a broken / past relationship (dashed lines, muted colors) */
 export const BROKEN_LABELS = ['Divorciado', 'Separado/a', 'Progenitores'];
 
@@ -46,12 +51,14 @@ export const DEFAULT_LABELS = {
   [EDGE_TYPES.PARTNER]: 'Casado/a',
   [EDGE_TYPES.SPOUSE]: 'Casado/a',
   [EDGE_TYPES.EX_SPOUSE]: 'Divorciado',
+  [EDGE_TYPES.SIBLING]: 'Hermano/a',
 };
 
 /** Resolve the display label for an edge */
 export const resolveEdgeLabel = (edge) => {
   if (edge.label) return edge.label;
   if (edge.type === EDGE_TYPES.EX_SPOUSE) return 'Divorciado';
+  if (edge.type === EDGE_TYPES.SIBLING) return 'Hermano/a';
   if (isPartnerEdgeType(edge.type)) return 'Casado/a';
   return 'Biológico';
 };
@@ -61,6 +68,7 @@ export const resolveEdgeLabel = (edge) => {
 export const LINK_TYPES = [
   { value: 'child', label: 'Hijo/a', description: 'El nodo seleccionado será hijo/a' },
   { value: 'parent', label: 'Padre/Madre', description: 'El nodo seleccionado será padre/madre' },
+  { value: EDGE_TYPES.SIBLING, label: 'Hermano/a', description: 'Vínculo entre hermanos (sin línea)' },
   { value: EDGE_TYPES.SPOUSE, label: 'Cónyuge', description: 'Vínculo matrimonial activo' },
   { value: EDGE_TYPES.EX_SPOUSE, label: 'Ex-pareja', description: 'Relación pasada o divorciada' },
 ];

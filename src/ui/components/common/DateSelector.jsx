@@ -1,5 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { CalendarDays } from 'lucide-react';
 import WheelPicker from './WheelPicker';
+import Button from './Button';
 
 const MONTHS = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
@@ -14,15 +16,19 @@ const MONTHS = [
  * `value` is an ISO date string "YYYY-MM-DD" or empty/null.
  * `onChange(newIsoDate)` is called whenever the user scrolls a column.
  */
-export default function DateSelector({ value, onChange, minYear = 1900, maxYear }) {
+export default function DateSelector({ value, onChange, minYear = 1900, maxYear, icon = CalendarDays }) {
   const today = new Date();
   const endYear = maxYear ?? today.getFullYear();
+  const [isOpen, setIsOpen] = useState(false);
+  const [draftValue, setDraftValue] = useState(value || '');
+
+  const activeValue = isOpen ? draftValue : value;
 
   const { day, month, year } = useMemo(() => {
-    if (!value) return { day: '', month: '', year: '' };
-    const [y, m, d] = value.split('-');
+    if (!activeValue) return { day: '', month: '', year: '' };
+    const [y, m, d] = activeValue.split('-');
     return { day: d || '', month: m || '', year: y || '' };
-  }, [value]);
+  }, [activeValue]);
 
   const daysInMonth = useMemo(() => {
     if (!year || !month) return 31;
@@ -63,19 +69,71 @@ export default function DateSelector({ value, onChange, minYear = 1900, maxYear 
   ], [endYear, minYear]);
 
   /* ── Handlers ─────────────────────────────────────────────────── */
-  const handleDay = (v) => onChange(buildDate(v, month, year));
+  const handleDay = (v) => setDraftValue(buildDate(v, month, year));
   const handleMonth = (newMonth) => {
     const maxDay = new Date(Number(year) || 2000, Number(newMonth), 0).getDate();
     const clamped = Number(day) > maxDay ? String(maxDay) : day;
-    onChange(buildDate(clamped, newMonth, year));
+    setDraftValue(buildDate(clamped, newMonth, year));
   };
-  const handleYear = (v) => onChange(buildDate(day, month, v));
+  const handleYear = (v) => setDraftValue(buildDate(day, month, v));
+
+  const Icon = icon;
+  const display = value
+    ? `${day || 'dd'}/${month ? MONTHS[Number(month) - 1]?.toLowerCase() : 'mmm'}/${year || 'yyyy'}`
+    : '';
 
   return (
-    <div className="flex gap-1.5">
-      <WheelPicker options={dayOptions} value={day} onChange={handleDay} className="w-[60px]" />
-      <WheelPicker options={monthOptions} value={month} onChange={handleMonth} className="flex-1" />
-      <WheelPicker options={yearOptions} value={year} onChange={handleYear} className="w-[80px]" />
-    </div>
+    <>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm text-gray-700 flex items-center">
+          {display || <span className="text-gray-400">dd/mmm/yyyy</span>}
+        </div>
+
+        {Icon && (
+          <button
+            type="button"
+            onClick={() => {
+              setDraftValue(value || '');
+              setIsOpen(true);
+            }}
+            className="shrink-0 w-10 h-10 rounded-lg border border-orange-200 bg-white hover:bg-orange-50 text-orange-500 flex items-center justify-center transition-colors"
+            title="Seleccionar fecha"
+          >
+            <Icon size={18} />
+          </button>
+        )}
+      </div>
+
+      {isOpen && Icon && (
+        <div
+          className="fixed inset-0 z-[140] bg-black/40 backdrop-blur-sm p-4 flex items-center justify-center"
+          onClick={() => setIsOpen(false)}
+        >
+          <div
+            className="bg-[#FFF8F0] rounded-2xl shadow-2xl w-full max-w-md p-4 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <h4 className="font-bold text-gray-800">Seleccionar fecha</h4>
+            <div className="flex gap-1.5">
+              <WheelPicker options={dayOptions} value={day} onChange={handleDay} className="w-[72px]" />
+              <WheelPicker options={monthOptions} value={month} onChange={handleMonth} className="flex-1" />
+              <WheelPicker options={yearOptions} value={year} onChange={handleYear} className="w-[96px]" />
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" variant="secondary" onClick={() => setIsOpen(false)}>Cancelar</Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  onChange(draftValue);
+                  setIsOpen(false);
+                }}
+              >
+                Aceptar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

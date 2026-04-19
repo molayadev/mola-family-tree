@@ -3,6 +3,7 @@ import { Move, Link as LinkIcon, X } from 'lucide-react';
 import { isPartnerEdgeType } from '../../../domain/config/constants';
 import { useCanvas } from '../../../application/hooks/useCanvas';
 import { downloadTreeSnapshot } from '../../../application/services/SnapshotService';
+import { getSiblingStatsByNode } from '../../../domain/utils/siblingUtils';
 import CanvasHUD from './CanvasHUD';
 import ZoomControls from './ZoomControls';
 import FamilyNode from './FamilyNode';
@@ -77,6 +78,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
 
   const visibleNodes = useMemo(() => nodes.filter(n => !hiddenNodeIds.has(n.id)), [nodes, hiddenNodeIds]);
   const visibleEdges = useMemo(() => edges.filter(e => !hiddenNodeIds.has(e.from) && !hiddenNodeIds.has(e.to)), [edges, hiddenNodeIds]);
+  const siblingStatsByNode = useMemo(() => getSiblingStatsByNode(nodes, edges), [nodes, edges]);
 
   const toggleCollapse = useCallback((familyId) => {
     setCollapsedFamilies(prev => {
@@ -434,6 +436,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
             <FamilyNode
               key={node.id}
               node={node}
+              siblingStats={siblingStatsByNode[node.id]}
               isSelected={!linkingMode && actionsModal.nodeId === node.id}
               isDimmed={linkingMode && node.id !== linkingMode.sourceId && node.id !== linkTarget}
               isLinkTarget={linkingMode && node.id === linkTarget}
