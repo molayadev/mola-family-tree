@@ -33,6 +33,7 @@ function classifySibling(nodeAId, nodeBId, parentsByChild, partnerMap) {
   const parentsB = parentsByChild.get(nodeBId) || new Set();
   const commonCount = [...parentsA].filter(pid => parentsB.has(pid)).length;
 
+  // Two or more shared parents are treated as full siblings.
   if (commonCount >= 2) return 'full';
   if (commonCount === 1) return 'half';
 

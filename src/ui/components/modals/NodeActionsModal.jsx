@@ -153,7 +153,9 @@ export default function NodeActionsModal({
     const isSourceFrom = edgeToEdit.from === nodeId;
     if (isSourceFrom) return [];
 
-    const otherParentsEdges = nodeEdges.filter(e => e.type === EDGE_TYPES.PARENT && e.to === nodeId && e.id !== edgeToEdit.id);
+    const otherParentsEdges = nodeEdges.filter(
+      e => (!e.type || e.type === EDGE_TYPES.PARENT) && e.to === nodeId && e.id !== edgeToEdit.id,
+    );
     let suggestions = [];
     otherParentsEdges.forEach(opEdge => {
       const otherParentId = opEdge.from;

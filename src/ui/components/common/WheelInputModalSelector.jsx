@@ -41,9 +41,12 @@ export default function WheelInputModalSelector({
   return (
     <>
       <div className={`flex items-center gap-2 ${className}`}>
-        <div className="flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm text-gray-700 flex items-center">
-          {resolvedDisplayValue || <span className="text-gray-400">{placeholder}</span>}
-        </div>
+        <input
+          readOnly
+          aria-label={`${title}: ${resolvedDisplayValue || placeholder}`}
+          value={resolvedDisplayValue || placeholder}
+          className="flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm text-gray-700"
+        />
 
         {canOpenModal && (
           <button

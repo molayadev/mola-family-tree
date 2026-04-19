@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 
+/** Pixel distance used to snap dragged nodes to nearby node x/y alignment. */
 const SNAP_THRESHOLD = 5;
 
 export function useCanvas() {

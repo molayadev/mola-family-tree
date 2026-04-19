@@ -219,9 +219,13 @@ export class TreeService {
   organizeByLevels(nodes, edges) {
     if (nodes.length === 0) return nodes;
 
+    /** Horizontal spacing between partners in the same group. */
     const PARTNER_GAP = 110;
+    /** Vertical spacing between family generations. */
     const LEVEL_H = 190;
+    /** Horizontal spacing between groups that share a level. */
     const GROUP_GAP = 170;
+    /** Horizontal spacing between disconnected family components. */
     const FAMILY_GAP = 260;
 
     const childrenOf = {};
@@ -305,13 +309,18 @@ export class TreeService {
     });
     groupX[anchorGroup] = 0;
 
-    for (let i = 0; i < 10; i++) {
+    // RELAXATION_PASSES controls weighted-averaging iterations (35% previous position, 65% neighbor centroid)
+    // to stabilize horizontal placement and reduce overlap.
+    const RELAXATION_PASSES = 10;
+    const PREVIOUS_WEIGHT = 0.35;
+    const NEIGHBOR_WEIGHT = 0.65;
+    for (let i = 0; i < RELAXATION_PASSES; i++) {
       [...componentGroups].forEach((gr) => {
         if (gr === anchorGroup) return;
         const neighbors = [...layoutChildren[gr], ...layoutParents[gr]];
         if (neighbors.length === 0) return;
         const target = neighbors.reduce((sum, n) => sum + (groupX[n] ?? 0), 0) / neighbors.length;
-        groupX[gr] = groupX[gr] * 0.35 + target * 0.65;
+        groupX[gr] = groupX[gr] * PREVIOUS_WEIGHT + target * NEIGHBOR_WEIGHT;
       });
     }
 
