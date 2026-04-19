@@ -17,18 +17,21 @@ import {
 import Button from '../common/Button';
 import DateSelector from '../common/DateSelector';
 import TimeWheelSelector from '../common/TimeWheelSelector';
-import WheelPicker from '../common/WheelPicker';
+import WheelInputModalSelector from '../common/WheelInputModalSelector';
 import CollapsibleFieldset from '../common/CollapsibleFieldset';
 import {
   COLORS,
+  EDGE_TYPES,
   PARTNER_LABELS,
   PARENT_LABELS,
+  SIBLING_LABELS,
   TWIN_TYPES,
   ZODIAC_SIGNS,
   isPartnerEdgeType,
   resolveEdgeLabel,
 } from '../../../domain/config/constants';
 import { formatNodeDates, calculateAge } from '../../../domain/utils/dateUtils';
+import { getSiblingsForNode } from '../../../domain/utils/siblingUtils';
 import useZodiac from '../../../application/hooks/useZodiac';
 
 // Pre-mapped option arrays for WheelPicker (avoids re-creating on every render)
@@ -36,6 +39,7 @@ const ZODIAC_OPTIONS = ZODIAC_SIGNS.map(z => ({ value: z.value, label: z.label, 
 const TWIN_OPTIONS = TWIN_TYPES.map(t => ({ value: t.value, label: t.label }));
 const PARTNER_LABEL_OPTIONS = PARTNER_LABELS.map(l => ({ value: l, label: l }));
 const PARENT_LABEL_OPTIONS = PARENT_LABELS.map(l => ({ value: l, label: l }));
+const SIBLING_LABEL_OPTIONS = SIBLING_LABELS.map(l => ({ value: l, label: l }));
 
 export default function NodeActionsModal({
   node,
@@ -76,6 +80,17 @@ export default function NodeActionsModal({
 
   const nodeId = node.id;
   const nodeEdges = edges.filter(e => e.from === nodeId || e.to === nodeId);
+  const siblingRelations = getSiblingsForNode(nodes, edges, nodeId);
+  const explicitSiblingTargets = new Set(
+    nodeEdges.filter(e => e.type === EDGE_TYPES.SIBLING).map(e => (e.from === nodeId ? e.to : e.from)),
+  );
+  const autoSiblingRelations = siblingRelations.filter(
+    rel => rel.kind !== 'manual' && !explicitSiblingTargets.has(rel.targetId),
+  );
+  const nodeRelations = [
+    ...nodeEdges.map(edge => ({ id: edge.id, mode: 'edge', edge })),
+    ...autoSiblingRelations.map(rel => ({ id: `auto-sibling-${rel.targetId}`, mode: 'auto_sibling', rel })),
+  ];
 
   const handleQuickAction = (action) => {
     if (!readyRef.current) return; // Ignore accidental taps before guard expires
@@ -91,18 +106,37 @@ export default function NodeActionsModal({
   };
 
   // ---- Links helpers ----
-  const getRelationDetails = (edge) => {
+  const getRelationDetails = (relation) => {
+    if (relation.mode === 'auto_sibling') {
+      const targetNode = nodes.find(n => n.id === relation.rel.targetId);
+      if (!targetNode) return null;
+      return {
+        relation,
+        targetId: relation.rel.targetId,
+        targetNode,
+        isPartner: false,
+        isSibling: true,
+        isAutoSibling: true,
+        currentLabel: relation.rel.label,
+        displayTitle: relation.rel.label,
+      };
+    }
+
+    const edge = relation.edge;
     const isSourceFrom = edge.from === nodeId;
     const targetId = isSourceFrom ? edge.to : edge.from;
     const targetNode = nodes.find(n => n.id === targetId);
     if (!targetNode) return null;
 
     const isPartner = isPartnerEdgeType(edge.type);
+    const isSibling = edge.type === EDGE_TYPES.SIBLING;
     const currentLabel = resolveEdgeLabel(edge);
 
     let displayTitle = currentLabel;
     const g = targetNode.data.gender;
-    if (!isPartner) {
+    if (isSibling) {
+      displayTitle = currentLabel;
+    } else if (!isPartner) {
       if (isSourceFrom) displayTitle = g === 'male' ? 'Hijo' : (g === 'female' ? 'Hija' : 'Hijo/a');
       else displayTitle = g === 'male' ? 'Padre' : (g === 'female' ? 'Madre' : 'Progenitor');
     } else {
@@ -110,15 +144,18 @@ export default function NodeActionsModal({
       if (currentLabel === 'Divorciado') displayTitle = g === 'male' ? 'Ex-esposo' : (g === 'female' ? 'Ex-esposa' : 'Ex-cónyuge');
     }
 
-    return { targetId, targetNode, isPartner, currentLabel, displayTitle };
+    return { relation, targetId, targetNode, isPartner, isSibling, isAutoSibling: false, currentLabel, displayTitle };
   };
 
   const getSuggestions = (edgeToEdit) => {
+    if (edgeToEdit.type === EDGE_TYPES.SIBLING) return [];
     if (edgeToEdit.type === 'partner' || edgeToEdit.type === 'spouse' || edgeToEdit.type === 'ex_spouse') return [];
     const isSourceFrom = edgeToEdit.from === nodeId;
     if (isSourceFrom) return [];
 
-    const otherParentsEdges = nodeEdges.filter(e => (e.type === 'parent' || !e.type.includes('spouse')) && e.to === nodeId && e.id !== edgeToEdit.id);
+    const otherParentsEdges = nodeEdges.filter(
+      e => (!e.type || e.type === EDGE_TYPES.PARENT) && e.to === nodeId && e.id !== edgeToEdit.id,
+    );
     let suggestions = [];
     otherParentsEdges.forEach(opEdge => {
       const otherParentId = opEdge.from;
@@ -259,39 +296,45 @@ export default function NodeActionsModal({
             {activeTab === 'links' && (
               <div className="p-4 space-y-3">
                 <p className="text-xs font-bold text-purple-600 uppercase tracking-wider">Vínculos de {node.data.firstName}</p>
-                {nodeEdges.length === 0 ? (
+                {nodeRelations.length === 0 ? (
                   <p className="text-gray-500 text-sm text-center py-4">No hay vínculos registrados para esta persona.</p>
                 ) : (
-                  nodeEdges.map(edge => {
-                    const details = getRelationDetails(edge);
+                  nodeRelations.map(relation => {
+                    const details = getRelationDetails(relation);
                     if (!details) return null;
-                    const { targetId, targetNode, isPartner, currentLabel, displayTitle } = details;
-                    const suggestions = getSuggestions(edge);
-                    const isExpanded = localExpandedId === edge.id;
+                    const { targetId, targetNode, isPartner, isSibling, isAutoSibling, currentLabel, displayTitle } = details;
+                    const edge = relation.mode === 'edge' ? relation.edge : null;
+                    const suggestions = edge ? getSuggestions(edge) : [];
+                    const isExpanded = edge && localExpandedId === edge.id;
+                    const editable = Boolean(edge && !isAutoSibling);
 
                     return (
-                      <div key={edge.id} className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden shadow-sm ${isExpanded ? 'border-purple-300 ring-4 ring-purple-50' : 'border-gray-100 hover:border-purple-200'}`}>
+                      <div key={relation.id} className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden shadow-sm ${isExpanded ? 'border-purple-300 ring-4 ring-purple-50' : 'border-gray-100 hover:border-purple-200'}`}>
                         <div
-                          className="p-4 flex justify-between items-center cursor-pointer select-none"
-                          onClick={() => setLocalExpandedId(isExpanded ? null : edge.id)}
+                          className={`p-4 flex justify-between items-center select-none ${editable ? 'cursor-pointer' : 'cursor-default'}`}
+                          onClick={() => editable && setLocalExpandedId(isExpanded ? null : edge.id)}
                         >
                           <div className="flex flex-col">
                             <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wide">{displayTitle}</span>
                             <span className="text-gray-800 font-semibold">{targetNode.data.firstName} {targetNode.data.lastName}</span>
                           </div>
                           <div className="flex items-center gap-2 text-gray-400">
-                            {isExpanded ? <ChevronDown size={18} className="transform rotate-180" /> : <Edit2 size={16} className="opacity-50" />}
+                            {!editable ? (
+                              <span className="text-[10px] font-bold text-indigo-500">AUTO</span>
+                            ) : isExpanded ? <ChevronDown size={18} className="transform rotate-180" /> : <Edit2 size={16} className="opacity-50" />}
                           </div>
                         </div>
 
-                        {isExpanded && (
+                        {editable && isExpanded && (
                           <div className="p-4 pt-0 border-t border-gray-50 bg-gray-50/50 space-y-4 animate-in slide-in-from-top-2">
                             <div>
                               <label className="block text-xs font-bold text-gray-500 mb-1">Estado de la Relación</label>
-                              <WheelPicker
-                                options={isPartner ? PARTNER_LABEL_OPTIONS : PARENT_LABEL_OPTIONS}
+                              <WheelInputModalSelector
+                                options={isSibling ? SIBLING_LABEL_OPTIONS : (isPartner ? PARTNER_LABEL_OPTIONS : PARENT_LABEL_OPTIONS)}
                                 value={currentLabel}
                                 onChange={(v) => onUpdateLink(edge.id, { label: v })}
+                                placeholder="Seleccionar"
+                                title="Estado de la relación"
                               />
                             </div>
 
@@ -399,11 +442,11 @@ export default function NodeActionsModal({
                   </div>
                 </div>
 
-                {/* ── Collapsible: Nacimiento y Fallecimiento ── */}
-                <CollapsibleFieldset label="Nacimiento y Fallecimiento" badge={ageBadge}>
+                {/* ── Collapsible: Inicio y Fin ── */}
+                <CollapsibleFieldset label="Inicio y Fin" badge={ageBadge}>
                   {/* Birth date */}
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-gray-500 uppercase">Fecha de Nacimiento</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase">Fecha de Inicio</label>
                     <DateSelector
                       value={formData.birthDate || ''}
                       onChange={v => setFormData({ ...formData, birthDate: v })}
@@ -412,7 +455,7 @@ export default function NodeActionsModal({
 
                   {/* Birth time */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hora de Nacimiento</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hora de Inicio</label>
                     <TimeWheelSelector
                       value={formData.birthTime || ''}
                       onChange={v => setFormData({ ...formData, birthTime: v })}
@@ -482,26 +525,35 @@ export default function NodeActionsModal({
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Sol</label>
-                        <WheelPicker
+                        <WheelInputModalSelector
                           options={ZODIAC_OPTIONS}
                           value={formData.sunSign || ''}
                           onChange={v => setFormData({ ...formData, sunSign: v })}
+                          title="Signo solar"
+                          placeholder="Sin signo"
+                          icon={null}
                         />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Luna</label>
-                        <WheelPicker
+                        <WheelInputModalSelector
                           options={ZODIAC_OPTIONS}
                           value={formData.moonSign || ''}
                           onChange={v => setFormData({ ...formData, moonSign: v })}
+                          title="Signo lunar"
+                          placeholder="Sin signo"
+                          icon={null}
                         />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-400 uppercase mb-0.5 text-center">Ascendente</label>
-                        <WheelPicker
+                        <WheelInputModalSelector
                           options={ZODIAC_OPTIONS}
                           value={formData.ascendantSign || ''}
                           onChange={v => setFormData({ ...formData, ascendantSign: v })}
+                          title="Signo ascendente"
+                          placeholder="Sin signo"
+                          icon={null}
                         />
                       </div>
                     </div>
@@ -509,7 +561,7 @@ export default function NodeActionsModal({
 
                   {/* Death date */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Fallecimiento</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Fin</label>
                     <DateSelector
                       value={formData.deathDate || ''}
                       onChange={v => setFormData({ ...formData, deathDate: v })}
@@ -520,10 +572,13 @@ export default function NodeActionsModal({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Gemelo / Mellizo</label>
-                      <WheelPicker
+                      <WheelInputModalSelector
                         options={TWIN_OPTIONS}
                         value={formData.twinType || ''}
                         onChange={v => setFormData({ ...formData, twinType: v })}
+                        title="Gemelo / Mellizo"
+                        placeholder="Ninguno"
+                        icon={null}
                       />
                     </div>
                     <div>

@@ -1,5 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 
+/** Pixel distance used to snap dragged nodes to nearby node x/y alignment. */
+const SNAP_THRESHOLD = 5;
+
 export function useCanvas() {
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
   const canvasRef = useRef(null);
@@ -16,6 +19,29 @@ export function useCanvas() {
     lastTouchEndTime: 0,       // Prevents synthesised mouse events after touch
     lastNodeSelectTime: 0,     // Debounce guard for node selection
   });
+
+  const getSnappedPosition = useCallback((dragNodeId, x, y, nodes) => {
+    let snappedX = x;
+    let snappedY = y;
+    let bestDx = SNAP_THRESHOLD + 1;
+    let bestDy = SNAP_THRESHOLD + 1;
+
+    nodes.forEach((node) => {
+      if (node.id === dragNodeId) return;
+      const dx = Math.abs(node.x - x);
+      const dy = Math.abs(node.y - y);
+      if (dx <= SNAP_THRESHOLD && dx < bestDx) {
+        bestDx = dx;
+        snappedX = node.x;
+      }
+      if (dy <= SNAP_THRESHOLD && dy < bestDy) {
+        bestDy = dy;
+        snappedY = node.y;
+      }
+    });
+
+    return { x: snappedX, y: snappedY };
+  }, []);
 
   const fitToScreen = useCallback((nodes) => {
     if (!nodes || nodes.length === 0) return;
@@ -132,15 +158,18 @@ export function useCanvas() {
 
       if (Math.hypot(dx, dy) > 5) {
         stateRef.current.hasMovedNode = true;
+        const rawX = stateRef.current.initialNodePos.x + dx;
+        const rawY = stateRef.current.initialNodePos.y + dy;
+        const snapped = getSnappedPosition(stateRef.current.dragNodeId, rawX, rawY, nodes);
         const newNodes = nodes.map(n =>
           n.id === stateRef.current.dragNodeId
-            ? { ...n, x: stateRef.current.initialNodePos.x + dx, y: stateRef.current.initialNodePos.y + dy }
+            ? { ...n, x: snapped.x, y: snapped.y }
             : n,
         );
         setNodes(newNodes);
       }
     }
-  }, []);
+  }, [getSnappedPosition]);
 
   const handleTouchEnd = useCallback((onSave, onSelectNode) => {
     stateRef.current.lastTouchEndTime = Date.now();
@@ -186,15 +215,18 @@ export function useCanvas() {
 
       if (Math.hypot(dx, dy) > 5) {
         stateRef.current.hasMovedNode = true;
+        const rawX = stateRef.current.initialNodePos.x + dx;
+        const rawY = stateRef.current.initialNodePos.y + dy;
+        const snapped = getSnappedPosition(stateRef.current.dragNodeId, rawX, rawY, nodes);
         const newNodes = nodes.map(n =>
           n.id === stateRef.current.dragNodeId
-            ? { ...n, x: stateRef.current.initialNodePos.x + dx, y: stateRef.current.initialNodePos.y + dy }
+            ? { ...n, x: snapped.x, y: snapped.y }
             : n,
         );
         setNodes(newNodes);
       }
     }
-  }, []);
+  }, [getSnappedPosition]);
 
   const handleMouseUp = useCallback((onSave, onSelectNode) => {
     // Ignore synthesised mouse events that follow a recent touch

@@ -1,10 +1,11 @@
-import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../../domain/config/constants';
+import { EDGE_TYPES, isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../../domain/config/constants';
 
 /** Vertical offset so parent-child lines start/end at the node circle edge */
 const NODE_RADIUS = 32;
 
 export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
   if (!fromNode || !toNode) return null;
+  if (edge.type === EDGE_TYPES.SIBLING) return null;
 
   const isPartner = isPartnerEdgeType(edge.type);
   const currentLabel = resolveEdgeLabel(edge);

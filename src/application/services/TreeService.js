@@ -219,24 +219,23 @@ export class TreeService {
   organizeByLevels(nodes, edges) {
     if (nodes.length === 0) return nodes;
 
-    // ── Layout configuration ───────────────────────────────────────────
-    const PARTNER_GAP = 100;   // horizontal distance between partners
-    const CHILD_GAP = 160;     // horizontal gap between child subtrees
-    const LEVEL_H = 200;       // vertical distance between generations
-    const FAMILY_GAP = 240;    // gap between disconnected family trees
+    /** Horizontal spacing between partners in the same group. */
+    const PARTNER_GAP = 110;
+    /** Vertical spacing between family generations. */
+    const LEVEL_H = 190;
+    /** Horizontal spacing between groups that share a level. */
+    const GROUP_GAP = 170;
+    /** Horizontal spacing between disconnected family components. */
+    const FAMILY_GAP = 260;
 
-    // ── 1. Build adjacency helpers ─────────────────────────────────────
-    const childrenOf = {};   // parentId → [childId]
-    const parentsOf = {};    // childId  → [parentId]
-
+    const childrenOf = {};
+    const parentsOf = {};
     edges.forEach(e => {
-      if (e.type === EDGE_TYPES.PARENT) {
-        (childrenOf[e.from] ??= []).push(e.to);
-        (parentsOf[e.to] ??= []).push(e.from);
-      }
+      if (e.type !== EDGE_TYPES.PARENT) return;
+      (childrenOf[e.from] ??= []).push(e.to);
+      (parentsOf[e.to] ??= []).push(e.from);
     });
 
-    // ── 2. Union-Find to group partners ────────────────────────────────
     const uf = {};
     const find = (a) => {
       uf[a] ??= a;
@@ -249,127 +248,127 @@ export class TreeService {
       if (isPartnerEdgeType(e.type)) union(e.from, e.to);
     });
 
-    // groupMembers: union-find root → [member node ids]
     const groupMembers = {};
     nodes.forEach(n => {
       const root = find(n.id);
       (groupMembers[root] ??= []).push(n.id);
     });
 
-    // ── 3. Build layout tree via BFS from root groups ──────────────────
-    const layoutChildren = {};   // groupRoot → [childGroupRoot, …]
-    const assigned = new Set();
-
-    // Root groups: groups where at least one member has no parents
-    const rootGroups = new Set();
-    nodes.forEach(n => {
-      if (!parentsOf[n.id] || parentsOf[n.id].length === 0) {
-        rootGroups.add(find(n.id));
-      }
+    const allGroups = Object.keys(groupMembers);
+    const layoutChildren = {};
+    const layoutParents = {};
+    allGroups.forEach(gr => {
+      layoutChildren[gr] = new Set();
+      layoutParents[gr] = new Set();
     });
 
-    const queue = [...rootGroups];
-    queue.forEach(gr => assigned.add(gr));
+    edges.forEach(e => {
+      if (e.type !== EDGE_TYPES.PARENT) return;
+      const fromGroup = find(e.from);
+      const toGroup = find(e.to);
+      if (fromGroup === toGroup) return;
+      layoutChildren[fromGroup].add(toGroup);
+      layoutParents[toGroup].add(fromGroup);
+    });
+
+    const anchorGroup = find(nodes[0].id);
+    const groupLevel = {};
+    const componentGroups = new Set();
+    const queue = [anchorGroup];
+    groupLevel[anchorGroup] = 0;
+    componentGroups.add(anchorGroup);
 
     let head = 0;
     while (head < queue.length) {
-      const gr = queue[head++];
-      const members = groupMembers[gr] || [];
-      const childGroupSet = new Set();
-
-      members.forEach(mid => {
-        (childrenOf[mid] || []).forEach(cid => {
-          const cGr = find(cid);
-          if (!assigned.has(cGr)) {
-            childGroupSet.add(cGr);
-            assigned.add(cGr);
-          }
-        });
+      const current = queue[head++];
+      const currentLevel = groupLevel[current];
+      [...layoutChildren[current]].forEach(child => {
+        if (groupLevel[child] === undefined) {
+          groupLevel[child] = currentLevel + 1;
+          componentGroups.add(child);
+          queue.push(child);
+        }
       });
-
-      if (childGroupSet.size > 0) {
-        layoutChildren[gr] = [...childGroupSet];
-        layoutChildren[gr].forEach(cg => queue.push(cg));
-      }
+      [...layoutParents[current]].forEach(parent => {
+        if (groupLevel[parent] === undefined) {
+          groupLevel[parent] = currentLevel - 1;
+          componentGroups.add(parent);
+          queue.push(parent);
+        }
+      });
     }
 
-    // Catch any disconnected nodes as additional roots
-    nodes.forEach(n => {
-      const gr = find(n.id);
-      if (!assigned.has(gr)) {
-        rootGroups.add(gr);
-        assigned.add(gr);
-      }
+    const groupX = {};
+    const groupWidth = {};
+    allGroups.forEach((gr) => {
+      const members = groupMembers[gr];
+      const avgX = members.reduce((sum, id) => {
+        const node = nodes.find(n => n.id === id);
+        return sum + (node?.x ?? 0);
+      }, 0) / members.length;
+      groupX[gr] = avgX;
+      groupWidth[gr] = Math.max((members.length - 1) * PARTNER_GAP, 0);
+    });
+    groupX[anchorGroup] = 0;
+
+    // RELAXATION_PASSES controls weighted-averaging iterations (35% previous position, 65% neighbor centroid)
+    // to stabilize horizontal placement and reduce overlap.
+    const RELAXATION_PASSES = 10;
+    const PREVIOUS_WEIGHT = 0.35;
+    const NEIGHBOR_WEIGHT = 0.65;
+    for (let i = 0; i < RELAXATION_PASSES; i++) {
+      [...componentGroups].forEach((gr) => {
+        if (gr === anchorGroup) return;
+        const neighbors = [...layoutChildren[gr], ...layoutParents[gr]];
+        if (neighbors.length === 0) return;
+        const target = neighbors.reduce((sum, n) => sum + (groupX[n] ?? 0), 0) / neighbors.length;
+        groupX[gr] = groupX[gr] * PREVIOUS_WEIGHT + target * NEIGHBOR_WEIGHT;
+      });
+    }
+
+    const levelGroups = {};
+    [...componentGroups].forEach((gr) => {
+      const level = groupLevel[gr] ?? 0;
+      (levelGroups[level] ??= []).push(gr);
     });
 
-    // ── 4. Compute subtree widths (bottom-up, memoized) ────────────────
-    const widthCache = {};
+    Object.values(levelGroups).forEach((groupsAtLevel) => {
+      groupsAtLevel.sort((a, b) => groupX[a] - groupX[b]);
+      let previousGroup = null;
+      groupsAtLevel.forEach((gr, idx) => {
+        const desired = groupX[gr];
+        if (idx === 0) {
+          groupX[gr] = desired;
+          previousGroup = gr;
+          return;
+        }
 
-    function subtreeWidth(gr) {
-      if (widthCache[gr] !== undefined) return widthCache[gr];
-
-      const members = groupMembers[gr] || [];
-      const memberWidth = Math.max(80, (members.length - 1) * PARTNER_GAP + 60);
-
-      const children = layoutChildren[gr] || [];
-      if (children.length === 0) {
-        widthCache[gr] = memberWidth;
-        return memberWidth;
-      }
-
-      let totalChildW = 0;
-      children.forEach((cg, i) => {
-        totalChildW += subtreeWidth(cg);
-        if (i < children.length - 1) totalChildW += CHILD_GAP;
+        const minCenterDistance = (groupWidth[previousGroup] ?? 0) / 2 + (groupWidth[gr] ?? 0) / 2 + GROUP_GAP;
+        const minPos = groupX[previousGroup] + minCenterDistance;
+        groupX[gr] = Math.max(desired, minPos);
+        previousGroup = gr;
       });
+    });
 
-      widthCache[gr] = Math.max(memberWidth, totalChildW);
-      return widthCache[gr];
-    }
+    const disconnected = allGroups.filter(gr => !componentGroups.has(gr));
+    let disconnectedCursor = Math.max(...Object.values(groupX), 0) + FAMILY_GAP;
+    disconnected.forEach((gr) => {
+      groupLevel[gr] = 0;
+      groupX[gr] = disconnectedCursor;
+      disconnectedCursor += FAMILY_GAP;
+    });
 
-    [...rootGroups].forEach(rg => subtreeWidth(rg));
-
-    // ── 5. Assign positions (top-down) ─────────────────────────────────
     const posMap = {};
-
-    function positionGroup(gr, centerX, level) {
-      const members = groupMembers[gr] || [];
-
-      // Center the partner group at centerX
-      const totalMemberW = (members.length - 1) * PARTNER_GAP;
-      const startX = centerX - totalMemberW / 2;
-      members.forEach((mid, i) => {
-        posMap[mid] = { x: startX + i * PARTNER_GAP, y: level * LEVEL_H };
+    allGroups.forEach((gr) => {
+      const members = groupMembers[gr];
+      const centerX = groupX[gr] ?? 0;
+      const y = (groupLevel[gr] ?? 0) * LEVEL_H;
+      const startX = centerX - ((members.length - 1) * PARTNER_GAP) / 2;
+      members.forEach((memberId, index) => {
+        posMap[memberId] = { x: startX + (index * PARTNER_GAP), y };
       });
-
-      // Position child groups below, centered under the parent group
-      const children = layoutChildren[gr] || [];
-      if (children.length === 0) return;
-
-      const childWidths = children.map(cg => subtreeWidth(cg));
-      const totalChildW = childWidths.reduce((s, w) => s + w, 0)
-        + (children.length - 1) * CHILD_GAP;
-
-      let cursor = centerX - totalChildW / 2;
-      children.forEach((cg, i) => {
-        positionGroup(cg, cursor + childWidths[i] / 2, level + 1);
-        cursor += childWidths[i] + CHILD_GAP;
-      });
-    }
-
-    // Layout all root groups side by side, centered at x = 0
-    const rootList = [...rootGroups];
-    const rootWidths = rootList.map(rg => subtreeWidth(rg));
-    const totalRootW = rootWidths.reduce((s, w) => s + w, 0)
-      + Math.max(0, rootList.length - 1) * FAMILY_GAP;
-
-    let cursor = -totalRootW / 2;
-    rootList.forEach((rg, i) => {
-      positionGroup(rg, cursor + rootWidths[i] / 2, 0);
-      cursor += rootWidths[i] + FAMILY_GAP;
     });
 
-    // ── 6. Return updated nodes ────────────────────────────────────────
     return nodes.map(n => ({
       ...n,
       x: posMap[n.id]?.x ?? n.x,
@@ -402,6 +401,9 @@ export class TreeService {
     } else if (type === EDGE_TYPES.EX_SPOUSE) {
       type = EDGE_TYPES.PARTNER;
       if (!label) label = 'Divorciado';
+    } else if (type === EDGE_TYPES.SIBLING) {
+      type = EDGE_TYPES.SIBLING;
+      if (!label) label = 'Hermano/a';
     }
 
     newEdges.push(createEdge({ from, to, type, label }));

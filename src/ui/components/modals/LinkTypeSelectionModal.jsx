@@ -1,4 +1,4 @@
-import { User, ArrowDown, ArrowUp, Heart, HeartCrack } from 'lucide-react';
+import { User, ArrowDown, ArrowUp, Heart, HeartCrack, Users } from 'lucide-react';
 import { COLORS, LINK_TYPES } from '../../../domain/config/constants';
 
 const LINK_ICONS = {
@@ -6,6 +6,7 @@ const LINK_ICONS = {
   parent: { icon: ArrowUp, color: 'text-orange-500', border: 'border-orange-200', hover: 'hover:bg-orange-50 hover:border-orange-400' },
   spouse: { icon: Heart, color: 'text-pink-500', border: 'border-pink-200', hover: 'hover:bg-pink-50 hover:border-pink-400' },
   ex_spouse: { icon: HeartCrack, color: 'text-gray-400', border: 'border-gray-200', hover: 'hover:bg-gray-50 hover:border-gray-400' },
+  sibling: { icon: Users, color: 'text-indigo-500', border: 'border-indigo-200', hover: 'hover:bg-indigo-50 hover:border-indigo-400' },
 };
 
 export default function LinkTypeSelectionModal({ sourceNode, targetNode, disableSpouse, onSelect, onClose }) {
