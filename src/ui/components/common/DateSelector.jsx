@@ -102,7 +102,7 @@ export default function DateSelector({ value, onChange, minYear = 1900, maxYear,
           value={display || 'dd/mmm/yyyy'}
           onClick={open}
           onKeyDown={onInputKeyDown}
-          className={`flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm ${display ? 'text-gray-700' : 'text-gray-400'}`}
+          className={`flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm cursor-pointer ${display ? 'text-gray-700' : 'text-gray-400'}`}
         />
 
         {Icon && (
