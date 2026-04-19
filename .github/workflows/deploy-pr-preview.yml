@@ -1,15 +1,22 @@
-name: Build and Deploy to Firebase Hosting
+name: Build and Deploy PR Preview to Firebase Hosting
 
 on:
-  push:
+  pull_request:
     branches:
       - main
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 permissions:
   contents: read
+  pull-requests: write
+  checks: true
+  checks: write
 
 jobs:
-  build-and-deploy:
+  build-and-deploy-pr-preview:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,10 +35,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Deploy to Firebase Hosting (Production)
+      - name: Deploy to Firebase Hosting (PR Preview)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: live
+          channelId: dev-pr-${{ github.event.pull_request.number }}
+          expires: 2d
           projectId: mola-family-tree
