@@ -299,6 +299,7 @@ export class TreeService {
     }
 
     const groupX = {};
+    const groupWidth = {};
     allGroups.forEach((gr) => {
       const members = groupMembers[gr];
       const avgX = members.reduce((sum, id) => {
@@ -306,6 +307,7 @@ export class TreeService {
         return sum + (node?.x ?? 0);
       }, 0) / members.length;
       groupX[gr] = avgX;
+      groupWidth[gr] = Math.max((members.length - 1) * PARTNER_GAP, 0);
     });
     groupX[anchorGroup] = 0;
 
@@ -332,12 +334,20 @@ export class TreeService {
 
     Object.values(levelGroups).forEach((groupsAtLevel) => {
       groupsAtLevel.sort((a, b) => groupX[a] - groupX[b]);
-      let cursor = -((groupsAtLevel.length - 1) * GROUP_GAP) / 2;
+      let previousGroup = null;
       groupsAtLevel.forEach((gr, idx) => {
         const desired = groupX[gr];
-        const minPos = idx === 0 ? cursor : Math.max(cursor, groupX[groupsAtLevel[idx - 1]] + GROUP_GAP);
+        if (idx === 0) {
+          groupX[gr] = desired;
+          previousGroup = gr;
+          return;
+        }
+
+        const prev = previousGroup;
+        const minCenterDistance = ((groupWidth[prev] + groupWidth[gr]) / 2) + GROUP_GAP;
+        const minPos = groupX[prev] + minCenterDistance;
         groupX[gr] = Math.max(desired, minPos);
-        cursor = groupX[gr] + GROUP_GAP;
+        previousGroup = gr;
       });
     });
 

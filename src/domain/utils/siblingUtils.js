@@ -1,4 +1,4 @@
-import { EDGE_TYPES, isPartnerEdgeType } from '../config/constants';
+import { EDGE_TYPES, resolveEdgeLabel } from '../config/constants';
 
 const AUTO_SIBLING_LABELS = {
   full: 'Hermano/a',
@@ -16,10 +16,16 @@ function buildParentsByChild(edges) {
   return map;
 }
 
-function buildPartnerMap(edges) {
+function isMarriedEdge(edge) {
+  if (edge.type === EDGE_TYPES.SPOUSE) return true;
+  if (edge.type !== EDGE_TYPES.PARTNER) return false;
+  return resolveEdgeLabel(edge) === 'Casado/a';
+}
+
+function buildMarriedPartnerMap(edges) {
   const map = new Map();
   edges.forEach((edge) => {
-    if (!isPartnerEdgeType(edge.type)) return;
+    if (!isMarriedEdge(edge)) return;
     if (!map.has(edge.from)) map.set(edge.from, new Set());
     if (!map.has(edge.to)) map.set(edge.to, new Set());
     map.get(edge.from).add(edge.to);
@@ -28,7 +34,7 @@ function buildPartnerMap(edges) {
   return map;
 }
 
-function classifySibling(nodeAId, nodeBId, parentsByChild, partnerMap) {
+function classifySibling(nodeAId, nodeBId, parentsByChild, marriedPartnerMap) {
   const parentsA = parentsByChild.get(nodeAId) || new Set();
   const parentsB = parentsByChild.get(nodeBId) || new Set();
   const commonCount = [...parentsA].filter(pid => parentsB.has(pid)).length;
@@ -38,7 +44,7 @@ function classifySibling(nodeAId, nodeBId, parentsByChild, partnerMap) {
   if (commonCount === 1) return 'half';
 
   for (const parentA of parentsA) {
-    const partners = partnerMap.get(parentA) || new Set();
+    const partners = marriedPartnerMap.get(parentA) || new Set();
     for (const parentB of parentsB) {
       if (partners.has(parentB)) return 'step';
     }
@@ -49,7 +55,7 @@ function classifySibling(nodeAId, nodeBId, parentsByChild, partnerMap) {
 
 export function getSiblingsForNode(nodes, edges, nodeId) {
   const parentsByChild = buildParentsByChild(edges);
-  const partnerMap = buildPartnerMap(edges);
+  const marriedPartnerMap = buildMarriedPartnerMap(edges);
 
   const explicitSiblingEdges = edges.filter(
     edge => edge.type === EDGE_TYPES.SIBLING && (edge.from === nodeId || edge.to === nodeId),
@@ -69,7 +75,7 @@ export function getSiblingsForNode(nodes, edges, nodeId) {
 
   nodes.forEach((node) => {
     if (node.id === nodeId || relatedById.has(node.id)) return;
-    const type = classifySibling(nodeId, node.id, parentsByChild, partnerMap);
+    const type = classifySibling(nodeId, node.id, parentsByChild, marriedPartnerMap);
     if (!type) return;
     relatedById.set(node.id, {
       targetId: node.id,
