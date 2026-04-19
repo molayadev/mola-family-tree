@@ -54,18 +54,21 @@ export default function WheelInputModalSelector({
           aria-disabled={!canOpenModal}
           aria-label={`${title}: ${resolvedDisplayValue || placeholder}`}
           value={resolvedDisplayValue || placeholder}
-          onClick={open}
+          onClick={canOpenModal ? open : undefined}
           onKeyDown={onInputKeyDown}
           className={`flex-1 min-h-10 px-3 rounded-lg border border-orange-200 bg-white text-sm ${
             resolvedDisplayValue ? 'text-gray-700' : 'text-gray-400'
           } ${canOpenModal ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
         />
 
-        {Icon && canOpenModal && (
+        {Icon && (
           <button
             type="button"
             onClick={open}
-            className="shrink-0 w-10 h-10 rounded-lg border border-orange-200 bg-white hover:bg-orange-50 text-orange-500 flex items-center justify-center transition-colors"
+            disabled={!canOpenModal}
+            className={`shrink-0 w-10 h-10 rounded-lg border border-orange-200 bg-white text-orange-500 flex items-center justify-center transition-colors ${
+              canOpenModal ? 'hover:bg-orange-50' : 'opacity-60 cursor-not-allowed'
+            }`}
             title={title}
           >
             <Icon size={18} />
