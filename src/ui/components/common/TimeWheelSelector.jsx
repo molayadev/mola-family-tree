@@ -48,7 +48,7 @@ export default function TimeWheelSelector({ value, onChange, icon = Clock3 }) {
     setIsOpen(true);
   };
   const onInputKeyDown = (e) => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
     e.preventDefault();
     open();
   };

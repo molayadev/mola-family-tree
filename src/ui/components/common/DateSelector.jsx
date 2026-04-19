@@ -83,7 +83,7 @@ export default function DateSelector({ value, onChange, minYear = 1900, maxYear,
     setIsOpen(true);
   };
   const onInputKeyDown = (e) => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
     e.preventDefault();
     open();
   };

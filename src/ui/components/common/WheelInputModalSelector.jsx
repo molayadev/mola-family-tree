@@ -39,7 +39,7 @@ export default function WheelInputModalSelector({
   };
   const onInputKeyDown = (e) => {
     if (!canOpenModal) return;
-    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
     e.preventDefault();
     open();
   };
