@@ -354,11 +354,13 @@ export class TreeService {
       });
     });
 
-    const disconnected = allGroups.filter(gr => !componentGroups.has(gr));
-    let disconnectedCursor = Math.max(
+    const calculateMaxGroupRightEdge = () => Math.max(
       ...allGroups.map(gr => (groupX[gr] ?? 0) + ((groupWidth[gr] ?? NODE_WIDTH) / 2)),
       0,
-    ) + FAMILY_GAP;
+    );
+
+    const disconnected = allGroups.filter(gr => !componentGroups.has(gr));
+    let disconnectedCursor = calculateMaxGroupRightEdge() + FAMILY_GAP;
     disconnected.forEach((gr) => {
       groupLevel[gr] = 0;
       const width = groupWidth[gr] ?? NODE_WIDTH;
@@ -366,11 +368,12 @@ export class TreeService {
       disconnectedCursor += width + FAMILY_GAP;
     });
 
+    const nodeXMap = new Map(nodes.map(n => [n.id, n.x]));
     const posMap = {};
     allGroups.forEach((gr) => {
       const members = [...groupMembers[gr]].sort((a, b) => {
-        const ax = nodes.find(n => n.id === a)?.x ?? 0;
-        const bx = nodes.find(n => n.id === b)?.x ?? 0;
+        const ax = nodeXMap.get(a) ?? 0;
+        const bx = nodeXMap.get(b) ?? 0;
         return ax - bx;
       });
       const centerX = groupX[gr] ?? 0;
