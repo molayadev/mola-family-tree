@@ -12,6 +12,8 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  checks: true
+  checks: write
 
 jobs:
   build-and-deploy-pr-preview:
