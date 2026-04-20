@@ -130,11 +130,14 @@ export default function NodeActionsModal({
 
     const isPartner = isPartnerEdgeType(edge.type);
     const isSibling = edge.type === EDGE_TYPES.SIBLING;
+    const isCustom = edge.type === EDGE_TYPES.CUSTOM;
     const currentLabel = resolveEdgeLabel(edge);
 
     let displayTitle = currentLabel;
     const g = targetNode.data.gender;
     if (isSibling) {
+      displayTitle = currentLabel;
+    } else if (isCustom) {
       displayTitle = currentLabel;
     } else if (!isPartner) {
       if (isSourceFrom) displayTitle = g === 'male' ? 'Hijo' : (g === 'female' ? 'Hija' : 'Hijo/a');
@@ -144,11 +147,11 @@ export default function NodeActionsModal({
       if (currentLabel === 'Divorciado') displayTitle = g === 'male' ? 'Ex-esposo' : (g === 'female' ? 'Ex-esposa' : 'Ex-cónyuge');
     }
 
-    return { relation, targetId, targetNode, isPartner, isSibling, isAutoSibling: false, currentLabel, displayTitle };
+    return { relation, targetId, targetNode, isPartner, isSibling, isCustom, isAutoSibling: false, currentLabel, displayTitle };
   };
 
   const getSuggestions = (edgeToEdit) => {
-    if (edgeToEdit.type === EDGE_TYPES.SIBLING) return [];
+    if (edgeToEdit.type === EDGE_TYPES.SIBLING || edgeToEdit.type === EDGE_TYPES.CUSTOM) return [];
     if (edgeToEdit.type === 'partner' || edgeToEdit.type === 'spouse' || edgeToEdit.type === 'ex_spouse') return [];
     const isSourceFrom = edgeToEdit.from === nodeId;
     if (isSourceFrom) return [];
@@ -302,7 +305,7 @@ export default function NodeActionsModal({
                   nodeRelations.map(relation => {
                     const details = getRelationDetails(relation);
                     if (!details) return null;
-                    const { targetId, targetNode, isPartner, isSibling, isAutoSibling, currentLabel, displayTitle } = details;
+                    const { targetId, targetNode, isPartner, isSibling, isCustom, isAutoSibling, currentLabel, displayTitle } = details;
                     const edge = relation.mode === 'edge' ? relation.edge : null;
                     const suggestions = edge ? getSuggestions(edge) : [];
                     const isExpanded = edge && localExpandedId === edge.id;
@@ -329,13 +332,19 @@ export default function NodeActionsModal({
                           <div className="p-4 pt-0 border-t border-gray-50 bg-gray-50/50 space-y-4 animate-in slide-in-from-top-2">
                             <div>
                               <label className="block text-xs font-bold text-gray-500 mb-1">Estado de la Relación</label>
-                              <WheelInputModalSelector
-                                options={isSibling ? SIBLING_LABEL_OPTIONS : (isPartner ? PARTNER_LABEL_OPTIONS : PARENT_LABEL_OPTIONS)}
-                                value={currentLabel}
-                                onChange={(v) => onUpdateLink(edge.id, { label: v })}
-                                placeholder="Seleccionar"
-                                title="Estado de la relación"
-                              />
+                              {isCustom ? (
+                                <div className="w-full p-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 bg-white">
+                                  {currentLabel}
+                                </div>
+                              ) : (
+                                <WheelInputModalSelector
+                                  options={isSibling ? SIBLING_LABEL_OPTIONS : (isPartner ? PARTNER_LABEL_OPTIONS : PARENT_LABEL_OPTIONS)}
+                                  value={currentLabel}
+                                  onChange={(v) => onUpdateLink(edge.id, { label: v })}
+                                  placeholder="Seleccionar"
+                                  title="Estado de la relación"
+                                />
+                              )}
                             </div>
 
                             <div>

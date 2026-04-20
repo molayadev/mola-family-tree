@@ -7,8 +7,8 @@ export class TreeService {
     this.storage = storageAdapter;
   }
 
-  save(username, nodes, edges) {
-    this.storage.saveUserData(username, null, nodes, edges);
+  save(username, nodes, edges, customLinkTypes = []) {
+    this.storage.saveUserData(username, null, nodes, edges, customLinkTypes);
   }
 
   addParents(nodes, edges, sourceNode) {
@@ -406,12 +406,15 @@ export class TreeService {
     }));
   }
 
-  linkNodes(edges, sourceId, targetId, linkType, linkLabel) {
+  linkNodes(edges, sourceId, targetId, linkType, linkLabel, customLinkTypes = []) {
     const newEdges = [...edges];
     let from = sourceId;
     let to = targetId;
     let type = linkType;
     let label = linkLabel;
+    let customLinkId = '';
+    let styleMode = '';
+    let styleColor = '';
 
     if (type === 'child') {
       // "child" means target is child of source → parent edge from source to target
@@ -434,9 +437,33 @@ export class TreeService {
     } else if (type === EDGE_TYPES.SIBLING) {
       type = EDGE_TYPES.SIBLING;
       if (!label) label = 'Hermano/a';
+    } else if (typeof type === 'string' && type.startsWith('custom:')) {
+      const selectedCustomLinkId = type.slice('custom:'.length);
+      const customLinkType = customLinkTypes.find(item => item.id === selectedCustomLinkId);
+      if (!customLinkType) return edges;
+      type = EDGE_TYPES.CUSTOM;
+      customLinkId = customLinkType.id;
+      styleMode = customLinkType.visualType;
+      styleColor = customLinkType.color;
+      label = customLinkType.name;
     }
 
-    newEdges.push(createEdge({ from, to, type, label }));
+    newEdges.push(createEdge({ from, to, type, label, customLinkId, styleMode, styleColor }));
     return newEdges;
+  }
+
+  syncCustomLinkEdges(edges, customLinkTypes = []) {
+    const definitions = new Map(customLinkTypes.map(item => [item.id, item]));
+    return edges.map((edge) => {
+      if (edge.type !== EDGE_TYPES.CUSTOM || !edge.customLinkId) return edge;
+      const definition = definitions.get(edge.customLinkId);
+      if (!definition) return edge;
+      return {
+        ...edge,
+        label: definition.name,
+        styleMode: definition.visualType,
+        styleColor: definition.color,
+      };
+    });
   }
 }

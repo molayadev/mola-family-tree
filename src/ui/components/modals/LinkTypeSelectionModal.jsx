@@ -1,4 +1,4 @@
-import { User, ArrowDown, ArrowUp, Heart, HeartCrack, Users } from 'lucide-react';
+import { User, ArrowDown, ArrowUp, Heart, HeartCrack, Users, Link as LinkIcon, Tag } from 'lucide-react';
 import { COLORS, LINK_TYPES } from '../../../domain/config/constants';
 
 const LINK_ICONS = {
@@ -9,7 +9,7 @@ const LINK_ICONS = {
   sibling: { icon: Users, color: 'text-indigo-500', border: 'border-indigo-200', hover: 'hover:bg-indigo-50 hover:border-indigo-400' },
 };
 
-export default function LinkTypeSelectionModal({ sourceNode, targetNode, disableSpouse, onSelect, onClose }) {
+export default function LinkTypeSelectionModal({ sourceNode, targetNode, customLinkTypes = [], disableSpouse, onSelect, onClose }) {
   if (!sourceNode || !targetNode) return null;
 
   return (
@@ -71,6 +71,28 @@ export default function LinkTypeSelectionModal({ sourceNode, targetNode, disable
               </button>
             );
           })}
+
+          {customLinkTypes.length > 0 && (
+            <div className="pt-2 mt-2 border-t border-gray-100 space-y-2">
+              <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Vínculos personalizados</p>
+              {customLinkTypes.map((customType) => {
+                const Icon = customType.visualType === 'badge' ? Tag : LinkIcon;
+                return (
+                  <button
+                    key={customType.id}
+                    onClick={() => onSelect(`custom:${customType.id}`)}
+                    className="w-full p-3 text-left border-2 rounded-2xl transition-all flex items-center gap-3 border-purple-200 bg-white hover:bg-purple-50 hover:border-purple-400 active:scale-[0.98] shadow-sm"
+                  >
+                    <Icon size={22} style={{ color: customType.color }} />
+                    <div className="flex-1">
+                      <span className="font-bold text-sm text-gray-700">{customType.name}</span>
+                      <p className="text-[10px] text-gray-400">Personalizado • {customType.visualType}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <button
