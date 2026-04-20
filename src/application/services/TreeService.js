@@ -454,7 +454,6 @@ export class TreeService {
 
   syncCustomLinkEdges(edges, customLinkTypes = []) {
     if (!customLinkTypes.length) return edges;
-    if (!edges.some(edge => edge.type === EDGE_TYPES.CUSTOM && edge.customLinkId)) return edges;
     const definitions = new Map(customLinkTypes.map(item => [item.id, item]));
     return edges.map((edge) => {
       if (edge.type !== EDGE_TYPES.CUSTOM || !edge.customLinkId) return edge;

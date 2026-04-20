@@ -3,6 +3,11 @@ import { EDGE_TYPES, isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '
 /** Vertical offset so parent-child lines start/end at the node circle edge */
 const NODE_RADIUS = 32;
 const MAX_CUSTOM_BADGE_LABEL_LENGTH = 12;
+const truncateBadgeLabel = (label = '') => (
+  label.length > MAX_CUSTOM_BADGE_LABEL_LENGTH
+    ? `${label.slice(0, MAX_CUSTOM_BADGE_LABEL_LENGTH - 1)}…`
+    : label
+);
 
 export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
   if (!fromNode || !toNode) return null;
@@ -85,7 +90,7 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
             textAnchor="middle"
             className="fill-white text-[10px] font-bold pointer-events-none select-none"
           >
-            {(edge.label || '').slice(0, MAX_CUSTOM_BADGE_LABEL_LENGTH)}
+            {truncateBadgeLabel(edge.label || '')}
           </text>
         </g>
       )}

@@ -94,11 +94,12 @@ export class ExportImportService {
       .map((item, index) => {
         const name = String(item.name || '').trim();
         const visualType = validModes.has(item.visualType) ? item.visualType : 'solid';
-        const deterministicId = `legacy-${`${name}-${visualType}-${index}`
+        const sanitizedSeed = `${name}-${visualType}-${index}`
           .toLowerCase()
           .replace(/[^a-z0-9-]/g, '-')
           .replace(/-+/g, '-')
-          .replace(/^-|-$/g, '') || index}`;
+          .replace(/^-|-$/g, '');
+        const deterministicId = `legacy-${sanitizedSeed || index}`;
         return {
           id: String(item.id || deterministicId),
           name,

@@ -135,14 +135,10 @@ export default function NodeActionsModal({
 
     let displayTitle = currentLabel;
     const g = targetNode.data.gender;
-    if (isCustom) {
-      displayTitle = currentLabel;
-    } else if (isSibling) {
-      displayTitle = currentLabel;
-    } else if (!isPartner) {
+    if (!isCustom && !isSibling && !isPartner) {
       if (isSourceFrom) displayTitle = g === 'male' ? 'Hijo' : (g === 'female' ? 'Hija' : 'Hijo/a');
       else displayTitle = g === 'male' ? 'Padre' : (g === 'female' ? 'Madre' : 'Progenitor');
-    } else {
+    } else if (isPartner) {
       if (currentLabel === 'Casado/a') displayTitle = g === 'male' ? 'Esposo' : (g === 'female' ? 'Esposa' : 'Cónyuge');
       if (currentLabel === 'Divorciado') displayTitle = g === 'male' ? 'Ex-esposo' : (g === 'female' ? 'Ex-esposa' : 'Ex-cónyuge');
     }
