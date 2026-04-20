@@ -275,12 +275,8 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   }, [nodes, edges, treeService, saveAndUpdate, fitToScreen, undoService]);
 
   // ---- Undo functionality ----
-  const [canUndo, setCanUndo] = useState(false);
-
-  // Update canUndo state whenever nodes or edges change
-  useEffect(() => {
-    setCanUndo(undoService.canUndo());
-  }, [nodes, edges, undoService]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const canUndo = useMemo(() => undoService.canUndo(), [undoService, nodes, edges]);
 
   const handleUndo = useCallback(() => {
     const previousState = undoService.undo();
