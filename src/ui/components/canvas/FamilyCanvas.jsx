@@ -141,8 +141,9 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const saveAndUpdate = useCallback((newNodes, newEdges, newCustomLinkTypes = customLinkTypes) => {
-    onSave(newNodes, newEdges, newCustomLinkTypes);
+  const saveAndUpdate = useCallback((newNodes, newEdges, newCustomLinkTypes) => {
+    const resolvedCustomLinkTypes = newCustomLinkTypes ?? customLinkTypes;
+    onSave(newNodes, newEdges, resolvedCustomLinkTypes);
   }, [onSave, customLinkTypes]);
 
   const openActionsModal = useCallback((nodeId, initialTab = null, expandedEdgeId = null) => {

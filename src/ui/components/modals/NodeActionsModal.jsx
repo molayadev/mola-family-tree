@@ -135,7 +135,9 @@ export default function NodeActionsModal({
 
     let displayTitle = currentLabel;
     const g = targetNode.data.gender;
-    if (isCustom || isSibling) {
+    if (isCustom) {
+      displayTitle = currentLabel;
+    } else if (isSibling) {
       displayTitle = currentLabel;
     } else if (!isPartner) {
       if (isSourceFrom) displayTitle = g === 'male' ? 'Hijo' : (g === 'female' ? 'Hija' : 'Hijo/a');
