@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Move, Link as LinkIcon, X } from 'lucide-react';
 import { isPartnerEdgeType } from '../../../domain/config/constants';
 import { useCanvas } from '../../../application/hooks/useCanvas';
@@ -12,7 +12,7 @@ import NodeActionsModal from '../modals/NodeActionsModal';
 import PartnerSelectionModal from '../modals/PartnerSelectionModal';
 import LinkTypeSelectionModal from '../modals/LinkTypeSelectionModal';
 
-export default function FamilyCanvas({ username, nodes, edges, treeService, exportService, onSave, onLogout }) {
+export default function FamilyCanvas({ username, nodes, edges, treeService, exportService, undoService, onSave, onLogout }) {
   const [actionsModal, setActionsModal] = useState({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
@@ -139,9 +139,26 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Track if we need to save state before node movement
+  const nodeMovementStateRef = useRef({ savedForCurrentDrag: false });
+
   const saveAndUpdate = useCallback((newNodes, newEdges) => {
     onSave(newNodes, newEdges);
   }, [onSave]);
+
+  // Wrapper for node movement that saves state on first move
+  const saveAndUpdateWithUndo = useCallback((newNodes, newEdges) => {
+    if (!nodeMovementStateRef.current.savedForCurrentDrag) {
+      undoService.saveState(nodes, edges);
+      nodeMovementStateRef.current.savedForCurrentDrag = true;
+    }
+    onSave(newNodes, newEdges);
+  }, [onSave, nodes, edges, undoService]);
+
+  // Reset the flag when drag ends
+  const handleDragEnd = useCallback(() => {
+    nodeMovementStateRef.current.savedForCurrentDrag = false;
+  }, []);
 
   const openActionsModal = useCallback((nodeId, initialTab = null, expandedEdgeId = null) => {
     setActionsModal({ isOpen: true, nodeId, initialTab, expandedEdgeId });
@@ -157,11 +174,12 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   }, [openActionsModal]);
 
   const confirmAddChild = useCallback((sourceId, partnerId) => {
+    undoService.saveState(nodes, edges);
     const result = treeService.addChild(nodes, edges, sourceId, partnerId);
     saveAndUpdate(result.nodes, result.edges);
     setPartnerSelection(null);
     setTimeout(() => fitToScreen(result.nodes), 100);
-  }, [nodes, edges, treeService, saveAndUpdate, fitToScreen]);
+  }, [nodes, edges, treeService, saveAndUpdate, fitToScreen, undoService]);
 
   const enterLinkingMode = useCallback((sourceId) => {
     closeActionsModal();
@@ -178,6 +196,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     if (action === 'add_parents') {
       // Guard: skip if node already has parents
       if (treeService.hasParents(edges, nodeId)) return;
+      undoService.saveState(nodes, edges);
       const result = treeService.addParents(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
@@ -195,16 +214,19 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     } else if (action === 'add_spouse') {
       // Guard: skip if node already has a current spouse
       if (treeService.hasSpouse(edges, nodeId)) return;
+      undoService.saveState(nodes, edges);
       const result = treeService.addSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'add_ex_spouse') {
+      undoService.saveState(nodes, edges);
       const result = treeService.addExSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'delete') {
+      undoService.saveState(nodes, edges);
       const result = treeService.deleteNode(nodes, edges, nodeId);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
@@ -212,25 +234,28 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     } else if (action === 'link') {
       enterLinkingMode(nodeId);
     }
-  }, [actionsModal.nodeId, nodes, edges, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal, enterLinkingMode]);
+  }, [actionsModal.nodeId, nodes, edges, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal, enterLinkingMode, undoService]);
 
   const handleUpdateNode = useCallback((nodeId, newData) => {
+    undoService.saveState(nodes, edges);
     const updatedNodes = treeService.updateNode(nodes, nodeId, newData);
     saveAndUpdate(updatedNodes, edges);
     closeActionsModal();
-  }, [nodes, edges, treeService, saveAndUpdate, closeActionsModal]);
+  }, [nodes, edges, treeService, saveAndUpdate, closeActionsModal, undoService]);
 
   const handleUpdateLink = useCallback((edgeId, updates) => {
+    undoService.saveState(nodes, edges);
     const result = treeService.updateLink(nodes, edges, edgeId, updates, actionsModal.nodeId);
     saveAndUpdate(result.nodes, result.edges);
-  }, [nodes, edges, treeService, actionsModal.nodeId, saveAndUpdate]);
+  }, [nodes, edges, treeService, actionsModal.nodeId, saveAndUpdate, undoService]);
 
   const handleDeleteLink = useCallback((edgeId) => {
     if (window.confirm('¿Seguro que deseas eliminar este vínculo? (La persona seguirá existiendo en el árbol)')) {
+      undoService.saveState(nodes, edges);
       const newEdges = treeService.deleteLink(edges, edgeId);
       saveAndUpdate(nodes, newEdges);
     }
-  }, [nodes, edges, treeService, saveAndUpdate]);
+  }, [nodes, edges, treeService, saveAndUpdate, undoService]);
 
   const handleExport = useCallback(() => {
     exportService.exportTree(username, nodes, edges);
@@ -241,11 +266,29 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   }, [username, nodes, edges]);
 
   const handleOrganize = useCallback(() => {
+    // Save state before organizing
+    undoService.saveState(nodes, edges);
     setCollapsedFamilies(new Set()); // expand all before reorganizing layout
     const organizedNodes = treeService.organizeByLevels(nodes, edges);
     saveAndUpdate(organizedNodes, edges);
     setTimeout(() => fitToScreen(organizedNodes), 100);
-  }, [nodes, edges, treeService, saveAndUpdate, fitToScreen]);
+  }, [nodes, edges, treeService, saveAndUpdate, fitToScreen, undoService]);
+
+  // ---- Undo functionality ----
+  const [canUndo, setCanUndo] = useState(false);
+
+  // Update canUndo state whenever nodes or edges change
+  useEffect(() => {
+    setCanUndo(undoService.canUndo());
+  }, [nodes, edges, undoService]);
+
+  const handleUndo = useCallback(() => {
+    const previousState = undoService.undo();
+    if (previousState) {
+      saveAndUpdate(previousState.nodes, previousState.edges);
+      setTimeout(() => fitToScreen(previousState.nodes), 100);
+    }
+  }, [undoService, saveAndUpdate, fitToScreen]);
 
   // ---- Linking mode ----
   const cancelLinkingMode = useCallback(() => {
@@ -261,11 +304,12 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
 
   const handleLinkTypeChosen = useCallback((linkType) => {
     if (!linkingMode || !linkTarget) return;
+    undoService.saveState(nodes, edges);
     const newEdges = treeService.linkNodes(edges, linkingMode.sourceId, linkTarget, linkType);
     saveAndUpdate(nodes, newEdges);
     setLinkingMode(null);
     setLinkTarget(null);
-  }, [linkingMode, linkTarget, edges, nodes, treeService, saveAndUpdate]);
+  }, [linkingMode, linkTarget, edges, nodes, treeService, saveAndUpdate, undoService]);
 
   const handleNodePointerDownWrapped = useCallback((e, nodeId) => {
     if (linkingMode) {
@@ -309,15 +353,15 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
       onMouseDown={(e) => {
         handleMouseDown(e, transform);
       }}
-      onMouseMove={(e) => handleMouseMove(e, nodes, (n) => saveAndUpdate(n, edges), transform)}
-      onMouseUp={() => handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal)}
-      onMouseLeave={() => handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal)}
+      onMouseMove={(e) => handleMouseMove(e, nodes, (n) => saveAndUpdateWithUndo(n, edges), transform)}
+      onMouseUp={() => { handleDragEnd(); handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal); }}
+      onMouseLeave={() => { handleDragEnd(); handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal); }}
       onWheel={handleWheel}
       onTouchStart={(e) => {
         handleTouchStart(e, transform);
       }}
-      onTouchMove={(e) => handleTouchMove(e, nodes, (n) => saveAndUpdate(n, edges), transform)}
-      onTouchEnd={() => handleTouchEnd(() => saveAndUpdate(nodes, edges), openActionsModal)}
+      onTouchMove={(e) => handleTouchMove(e, nodes, (n) => saveAndUpdateWithUndo(n, edges), transform)}
+      onTouchEnd={() => { handleDragEnd(); handleTouchEnd(() => saveAndUpdate(nodes, edges), openActionsModal); }}
       style={{ touchAction: 'none' }}
     >
       <CanvasHUD
@@ -332,6 +376,8 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
         hasFamilies={familyNuclei.length > 0}
         hasCollapsed={collapsedFamilies.size > 0}
         onToggleCollapseAll={handleToggleCollapseAll}
+        onUndo={handleUndo}
+        canUndo={canUndo}
       />
 
       <ZoomControls onZoomIn={zoomIn} onZoomOut={zoomOut} />

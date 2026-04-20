@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Target, Download, LogOut, Menu, X, Camera, LayoutGrid, Minimize2, Maximize2 } from 'lucide-react';
+import { Target, Download, LogOut, Menu, X, Camera, LayoutGrid, Minimize2, Maximize2, Undo } from 'lucide-react';
 
-export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onOrganize, onExport, onSnapshot, onLogout, hasFamilies, hasCollapsed, onToggleCollapseAll }) {
+export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onOrganize, onExport, onSnapshot, onLogout, hasFamilies, hasCollapsed, onToggleCollapseAll, onUndo, canUndo }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen(prev => !prev);
@@ -22,6 +22,14 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
         </div>
 
         <div className="flex gap-2 pointer-events-auto">
+          <button 
+            onClick={onUndo} 
+            disabled={!canUndo}
+            className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white" 
+            title="Deshacer (máx. 5 veces)"
+          >
+            <Undo size={20} className="text-gray-600" />
+          </button>
           <button onClick={onFitToScreen} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Centrar Vista">
             <Target size={20} className="text-gray-600" />
           </button>
@@ -69,6 +77,15 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
                 <p className="font-bold text-gray-800 text-sm">Familia de {username}</p>
                 <p className="text-[10px] text-gray-500">{nodeCount} familiares • Zoom: {Math.round(zoom * 100)}%</p>
               </div>
+
+              <button
+                onClick={() => handleAction(onUndo)}
+                disabled={!canUndo}
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:active:bg-white"
+              >
+                <Undo size={18} className="text-gray-600" />
+                <span className="text-sm text-gray-700">Deshacer</span>
+              </button>
 
               <button
                 onClick={() => handleAction(onFitToScreen)}
