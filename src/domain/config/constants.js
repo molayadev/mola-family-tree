@@ -76,7 +76,7 @@ export const LINK_TYPES = [
 
 export const LINK_VISUAL_TYPES = [
   { value: 'solid', label: 'Línea sólida' },
-  { value: 'dashed', label: 'Línea dashed' },
+  { value: 'dashed', label: 'Línea punteada' },
   { value: 'badge', label: 'Badge' },
 ];
 

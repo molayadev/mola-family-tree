@@ -91,12 +91,21 @@ export class ExportImportService {
     const validModes = new Set(['solid', 'dashed', 'badge']);
     return customLinkTypes
       .filter(Boolean)
-      .map((item) => ({
-        id: String(item.id || crypto.randomUUID()),
-        name: String(item.name || '').trim(),
-        visualType: validModes.has(item.visualType) ? item.visualType : 'solid',
-        color: typeof item.color === 'string' && item.color.trim() ? item.color.trim() : '#8B5CF6',
-      }))
+      .map((item, index) => {
+        const name = String(item.name || '').trim();
+        const visualType = validModes.has(item.visualType) ? item.visualType : 'solid';
+        const deterministicId = `legacy-${`${name}-${visualType}-${index}`
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '') || index}`;
+        return {
+          id: String(item.id || deterministicId),
+          name,
+          visualType,
+          color: typeof item.color === 'string' && item.color.trim() ? item.color.trim() : '#8B5CF6',
+        };
+      })
       .filter(item => item.name.length > 0);
   }
 

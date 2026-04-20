@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
 import Button from '../common/Button';
 import { LINK_VISUAL_TYPES } from '../../../domain/config/constants';
+import { generateId } from '../../../domain/entities/Node';
 
 const DEFAULT_COLOR = '#8B5CF6';
 
 const createDraftLinkType = () => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   name: '',
   visualType: 'solid',
   color: DEFAULT_COLOR,
