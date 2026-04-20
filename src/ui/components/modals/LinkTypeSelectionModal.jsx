@@ -1,4 +1,4 @@
-import { User, ArrowDown, ArrowUp, Heart, HeartCrack, Users, Link as LinkIcon, Tag } from 'lucide-react';
+import { User, ArrowDown, ArrowUp, Heart, HeartCrack, Users, Link as LinkChainIcon, Tag } from 'lucide-react';
 import { COLORS, LINK_TYPES } from '../../../domain/config/constants';
 
 const LINK_ICONS = {
@@ -76,7 +76,7 @@ export default function LinkTypeSelectionModal({ sourceNode, targetNode, customL
             <div className="pt-2 mt-2 border-t border-gray-100 space-y-2">
               <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Vínculos personalizados</p>
               {customLinkTypes.map((customType) => {
-                const Icon = customType.visualType === 'badge' ? Tag : LinkIcon;
+                const Icon = customType.visualType === 'badge' ? Tag : LinkChainIcon;
                 return (
                   <button
                     key={customType.id}
