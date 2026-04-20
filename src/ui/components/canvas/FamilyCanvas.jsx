@@ -317,6 +317,16 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
     handleNodePointerDown(e, nodeId, nodes);
   }, [linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes]);
 
+  const handleMouseUpCallback = useCallback(() => {
+    handleDragEnd();
+    handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal);
+  }, [handleDragEnd, handleMouseUp, nodes, edges, saveAndUpdate, openActionsModal]);
+
+  const handleTouchEndCallback = useCallback(() => {
+    handleDragEnd();
+    handleTouchEnd(() => saveAndUpdate(nodes, edges), openActionsModal);
+  }, [handleDragEnd, handleTouchEnd, nodes, edges, saveAndUpdate, openActionsModal]);
+
   const sourceNodeForLink = useMemo(
     () => linkingMode ? nodes.find(n => n.id === linkingMode.sourceId) : null,
     [linkingMode, nodes],
@@ -350,14 +360,14 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
         handleMouseDown(e, transform);
       }}
       onMouseMove={(e) => handleMouseMove(e, nodes, (n) => saveAndUpdateWithUndo(n, edges), transform)}
-      onMouseUp={() => { handleDragEnd(); handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal); }}
-      onMouseLeave={() => { handleDragEnd(); handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal); }}
+      onMouseUp={handleMouseUpCallback}
+      onMouseLeave={handleMouseUpCallback}
       onWheel={handleWheel}
       onTouchStart={(e) => {
         handleTouchStart(e, transform);
       }}
       onTouchMove={(e) => handleTouchMove(e, nodes, (n) => saveAndUpdateWithUndo(n, edges), transform)}
-      onTouchEnd={() => { handleDragEnd(); handleTouchEnd(() => saveAndUpdate(nodes, edges), openActionsModal); }}
+      onTouchEnd={handleTouchEndCallback}
       style={{ touchAction: 'none' }}
     >
       <CanvasHUD
