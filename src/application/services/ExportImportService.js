@@ -117,7 +117,9 @@ export class ExportImportService {
     return familyGroups
       .filter(Boolean)
       .map((item, index) => {
-        const nodeIds = Array.isArray(item.nodeIds) ? item.nodeIds.filter(Boolean).map(String) : [];
+        const nodeIds = Array.isArray(item.nodeIds)
+          ? item.nodeIds.filter(id => id !== null && id !== undefined && id !== '').map(String)
+          : [];
         return {
           id: String(item.id || `family-group-${index}`),
           label: String(item.label || '').trim(),

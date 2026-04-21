@@ -80,8 +80,7 @@ const buildAutoFamilyGroups = (nodes, edges) => {
       return;
     }
 
-    if (!isPartnerEdgeType(edge.type)) return;
-    if (isBrokenLabel(edge.label)) return;
+    if (!isPartnerEdgeType(edge.type) || isBrokenLabel(edge.label)) return;
 
     (spouseMap[edge.from] ??= new Set()).add(edge.to);
     (spouseMap[edge.to] ??= new Set()).add(edge.from);
@@ -171,7 +170,6 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       return () => clearTimeout(timer);
     }
     setTransform({ x: window.innerWidth / 2, y: window.innerHeight / 2, k: 1 });
-    return undefined;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track if we need to save state before node movement
