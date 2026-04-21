@@ -15,6 +15,7 @@ export const EDGE_TYPES = {
   SPOUSE: 'spouse',
   EX_SPOUSE: 'ex_spouse',
   SIBLING: 'sibling',
+  CUSTOM: 'custom',
 };
 
 /** All edge type values that represent a partner-like relationship */
@@ -71,6 +72,12 @@ export const LINK_TYPES = [
   { value: EDGE_TYPES.SIBLING, label: 'Hermano/a', description: 'Vínculo entre hermanos (sin línea)' },
   { value: EDGE_TYPES.SPOUSE, label: 'Cónyuge', description: 'Vínculo matrimonial activo' },
   { value: EDGE_TYPES.EX_SPOUSE, label: 'Ex-pareja', description: 'Relación pasada o divorciada' },
+];
+
+export const LINK_VISUAL_TYPES = [
+  { value: 'solid', label: 'Línea sólida' },
+  { value: 'dashed', label: 'Línea punteada' },
+  { value: 'badge', label: 'Badge' },
 ];
 
 // ── Twin / multiple birth constants ──────────────────────────────────

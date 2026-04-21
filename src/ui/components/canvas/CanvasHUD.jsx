@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Target, Download, LogOut, Menu, X, Camera, LayoutGrid, Minimize2, Maximize2, Undo } from 'lucide-react';
 
-export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onOrganize, onExport, onSnapshot, onLogout, hasFamilies, hasCollapsed, onToggleCollapseAll, onUndo, canUndo }) {
+import { Target, Download, LogOut, Menu, X, Camera, LayoutGrid, Minimize2, Maximize2, Undo, Link as LinkIcon } from 'lucide-react';
+
+export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onOrganize, onManageLinkTypes, onExport, onSnapshot, onLogout, hasFamilies, hasCollapsed, onToggleCollapseAll, onUndo, canUndo }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen(prev => !prev);
@@ -43,6 +44,9 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
           )}
           <button onClick={onSnapshot} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Descargar imagen">
             <Camera size={20} className="text-gray-600" />
+          </button>
+          <button onClick={onManageLinkTypes} className="p-3 bg-white hover:bg-purple-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Gestionar vínculos">
+            <LinkIcon size={20} className="text-purple-500" />
           </button>
           <button onClick={onExport} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Exportar JSON">
             <Download size={20} className="text-gray-600" />
@@ -119,6 +123,14 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
               >
                 <Camera size={18} className="text-gray-600" />
                 <span className="text-sm text-gray-700">Descargar imagen</span>
+              </button>
+
+              <button
+                onClick={() => handleAction(onManageLinkTypes)}
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-purple-50 active:bg-purple-100 transition-colors text-left"
+              >
+                <LinkIcon size={18} className="text-purple-500" />
+                <span className="text-sm text-gray-700">Gestionar vínculos</span>
               </button>
 
               <button

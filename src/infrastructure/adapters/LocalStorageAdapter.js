@@ -23,21 +23,21 @@ export class LocalStorageAdapter extends StoragePort {
     return user || null;
   }
 
-  saveUserData(username, password, nodes, edges) {
+  saveUserData(username, password, nodes, edges, customLinkTypes = []) {
     const db = this.#getDb();
     const currentPass = password ?? db.users[username]?.password;
     db.users[username] = {
       password: currentPass,
-      treeData: { nodes, edges },
+      treeData: { nodes, edges, customLinkTypes },
     };
     this.#saveDb(db);
   }
 
-  importUserData(username, password, nodes, edges) {
+  importUserData(username, password, nodes, edges, customLinkTypes = []) {
     const db = this.#getDb();
     db.users[username] = {
       password: password || '1234',
-      treeData: { nodes, edges },
+      treeData: { nodes, edges, customLinkTypes },
     };
     this.#saveDb(db);
   }

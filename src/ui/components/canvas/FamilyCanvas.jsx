@@ -11,11 +11,13 @@ import FamilyEdge from './FamilyEdge';
 import NodeActionsModal from '../modals/NodeActionsModal';
 import PartnerSelectionModal from '../modals/PartnerSelectionModal';
 import LinkTypeSelectionModal from '../modals/LinkTypeSelectionModal';
+import LinkTypesManagerModal from '../modals/LinkTypesManagerModal';
 
-export default function FamilyCanvas({ username, nodes, edges, treeService, exportService, undoService, onSave, onLogout }) {
+export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, treeService, exportService, onSave, onLogout }) {
   const [actionsModal, setActionsModal] = useState({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
+  const [linkTypesModalOpen, setLinkTypesModalOpen] = useState(false);
 
   // Linking mode state
   const [linkingMode, setLinkingMode] = useState(null); // { sourceId } or null
@@ -145,6 +147,10 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   const saveAndUpdate = useCallback((newNodes, newEdges) => {
     onSave(newNodes, newEdges);
   }, [onSave]);
+  const saveAndUpdate = useCallback((newNodes, newEdges, newCustomLinkTypes) => {
+    const resolvedCustomLinkTypes = newCustomLinkTypes ?? customLinkTypes;
+    onSave(newNodes, newEdges, resolvedCustomLinkTypes);
+  }, [onSave, customLinkTypes]);
 
   // Wrapper for node movement that saves state on first move
   const saveAndUpdateWithUndo = useCallback((newNodes, newEdges) => {
@@ -258,8 +264,8 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   }, [nodes, edges, treeService, saveAndUpdate, undoService]);
 
   const handleExport = useCallback(() => {
-    exportService.exportTree(username, nodes, edges);
-  }, [username, nodes, edges, exportService]);
+    exportService.exportTree(username, nodes, edges, customLinkTypes);
+  }, [username, nodes, edges, customLinkTypes, exportService]);
 
   const handleSnapshot = useCallback(() => {
     downloadTreeSnapshot(username, nodes, edges);
@@ -301,11 +307,17 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
   const handleLinkTypeChosen = useCallback((linkType) => {
     if (!linkingMode || !linkTarget) return;
     undoService.saveState(nodes, edges);
-    const newEdges = treeService.linkNodes(edges, linkingMode.sourceId, linkTarget, linkType);
+    const newEdges = treeService.linkNodes(edges, linkingMode.sourceId, linkTarget, linkType, undefined, customLinkTypes);
     saveAndUpdate(nodes, newEdges);
     setLinkingMode(null);
     setLinkTarget(null);
-  }, [linkingMode, linkTarget, edges, nodes, treeService, saveAndUpdate, undoService]);
+  }, [linkingMode, linkTarget, edges, nodes, treeService, saveAndUpdate, undoService, customLinkTypes]);
+
+  const handleSaveCustomLinkTypes = useCallback((nextCustomLinkTypes) => {
+    const syncedEdges = treeService.syncCustomLinkEdges(edges, nextCustomLinkTypes);
+    saveAndUpdate(nodes, syncedEdges, nextCustomLinkTypes);
+    setLinkTypesModalOpen(false);
+  }, [treeService, edges, nodes, saveAndUpdate]);
 
   const handleNodePointerDownWrapped = useCallback((e, nodeId) => {
     if (linkingMode) {
@@ -376,6 +388,7 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
         zoom={transform.k}
         onFitToScreen={() => fitToScreen(visibleNodes)}
         onOrganize={handleOrganize}
+        onManageLinkTypes={() => setLinkTypesModalOpen(true)}
         onExport={handleExport}
         onSnapshot={handleSnapshot}
         onLogout={onLogout}
@@ -415,10 +428,20 @@ export default function FamilyCanvas({ username, nodes, edges, treeService, expo
       <LinkTypeSelectionModal
         sourceNode={sourceNodeForLink}
         targetNode={targetNodeForLink}
+        customLinkTypes={customLinkTypes}
         disableSpouse={disableSpouseLink}
         onSelect={handleLinkTypeChosen}
         onClose={() => setLinkTarget(null)}
       />
+
+      {linkTypesModalOpen && (
+        <LinkTypesManagerModal
+          isOpen={linkTypesModalOpen}
+          initialLinkTypes={customLinkTypes}
+          onClose={() => setLinkTypesModalOpen(false)}
+          onSave={handleSaveCustomLinkTypes}
+        />
+      )}
 
       {/* Linking mode banner */}
       {linkingMode && !linkTarget && (

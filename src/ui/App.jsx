@@ -23,6 +23,7 @@ export default function App() {
   const [hasLocalUsersFlag, setHasLocalUsersFlag] = useState(() => authService.hasUsers());
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
+  const [customLinkTypes, setCustomLinkTypes] = useState([]);
 
   const refreshHasUsers = useCallback(() => {
     setHasLocalUsersFlag(authService.hasUsers());
@@ -35,11 +36,12 @@ export default function App() {
       const loadedNodes = result.treeData.nodes || [];
       setNodes(loadedNodes);
       setEdges(result.treeData.edges || []);
+      setCustomLinkTypes(result.treeData.customLinkTypes || []);
       setView('canvas');
 
       if (loadedNodes.length === 0) {
         const initialNode = createNode({ id: 'root', x: 0, y: 0, firstName: 'Yo', gender: 'unknown' });
-        treeService.save(username, [initialNode], []);
+        treeService.save(username, [initialNode], [], result.treeData.customLinkTypes || []);
         setNodes([initialNode]);
       }
       return { success: true };
@@ -54,6 +56,7 @@ export default function App() {
       setCurrentUser(result.user);
       setNodes(result.treeData.nodes);
       setEdges(result.treeData.edges);
+      setCustomLinkTypes(result.treeData.customLinkTypes || []);
       refreshHasUsers();
       setView('canvas');
       return { success: true };
@@ -81,17 +84,19 @@ export default function App() {
     }
   }, [exportService, refreshHasUsers]);
 
-  const handleSave = useCallback((newNodes, newEdges) => {
+  const handleSave = useCallback((newNodes, newEdges, newCustomLinkTypes = customLinkTypes) => {
     setNodes(newNodes);
     setEdges(newEdges);
-    treeService.save(currentUser.username, newNodes, newEdges);
-  }, [currentUser, treeService]);
+    setCustomLinkTypes(newCustomLinkTypes);
+    treeService.save(currentUser.username, newNodes, newEdges, newCustomLinkTypes);
+  }, [currentUser, treeService, customLinkTypes]);
 
   const handleLogout = useCallback(() => {
     setView('landing');
     setCurrentUser(null);
     setNodes([]);
     setEdges([]);
+    setCustomLinkTypes([]);
   }, []);
 
   if (view === 'landing') {
@@ -119,6 +124,7 @@ export default function App() {
       username={currentUser.username}
       nodes={nodes}
       edges={edges}
+      customLinkTypes={customLinkTypes}
       treeService={treeService}
       exportService={exportService}
       undoService={undoService}
