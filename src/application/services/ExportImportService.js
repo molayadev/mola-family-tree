@@ -124,6 +124,7 @@ export class ExportImportService {
           id: String(item.id || `family-group-${index}`),
           label: String(item.label || '').trim(),
           emoji: String(item.emoji || '👨‍👩‍👧'),
+          color: typeof item.color === 'string' && item.color.trim() ? item.color.trim() : '#F97316',
           nodeIds: [...new Set(nodeIds)],
           collapsed: Boolean(item.collapsed),
         };

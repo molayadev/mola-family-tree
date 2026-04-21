@@ -15,8 +15,13 @@ import LinkTypesManagerModal from '../modals/LinkTypesManagerModal';
 import FamilyGroupsModal from '../modals/FamilyGroupsModal';
 
 const GROUP_EMOJIS = ['👨‍👩‍👧', '👨‍👩‍👧‍👦', '👩‍👩‍👦', '👨‍👨‍👧', '🏡', '💞', '🌳', '💫', '🫶', '✨'];
+const GROUP_COLORS = ['#F97316', '#7C3AED', '#0891B2', '#16A34A', '#DC2626', '#EA580C', '#4F46E5', '#D946EF'];
 
 const randomGroupEmoji = () => GROUP_EMOJIS[Math.floor(Math.random() * GROUP_EMOJIS.length)];
+const randomGroupColor = () => GROUP_COLORS[Math.floor(Math.random() * GROUP_COLORS.length)];
+const normalizeGroupColor = (color, fallback = '#F97316') => (
+  typeof color === 'string' && color.trim() ? color.trim() : fallback
+);
 
 const normalizeFamilyGroups = (groups, nodes) => {
   const validNodeIds = new Set(nodes.map(n => n.id));
@@ -30,6 +35,7 @@ const normalizeFamilyGroups = (groups, nodes) => {
         id: String(group.id || `family-group-${index}`),
         label: String(group.label || '').trim(),
         emoji: String(group.emoji || randomGroupEmoji()),
+        color: normalizeGroupColor(group.color),
         nodeIds,
         collapsed: Boolean(group.collapsed),
       };
@@ -109,6 +115,7 @@ const buildAutoFamilyGroups = (nodes, edges) => {
       id: `auto-family-group-${index + 1}`,
       label: `Núcleo familiar ${index + 1}`,
       emoji: randomGroupEmoji(),
+      color: randomGroupColor(),
       nodeIds: [...members],
       collapsed: false,
     };
@@ -139,11 +146,100 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   );
 
   const visibleNodes = useMemo(() => nodes.filter(n => !hiddenNodeIds.has(n.id)), [nodes, hiddenNodeIds]);
-  const visibleEdges = useMemo(() => edges.filter(e => !hiddenNodeIds.has(e.from) && !hiddenNodeIds.has(e.to)), [edges, hiddenNodeIds]);
+  const collapsedGroupByNodeId = useMemo(() => {
+    const map = new Map();
+    normalizedFamilyGroups
+      .filter(group => group.collapsed)
+      .forEach((group) => {
+        group.nodeIds.forEach((nodeId) => map.set(nodeId, group.id));
+      });
+    return map;
+  }, [normalizedFamilyGroups]);
+
+  const collapsedGroupBubbleMap = useMemo(() => {
+    const nodeMap = new Map(nodes.map(node => [node.id, node]));
+    const bubbleMap = new Map();
+
+    normalizedFamilyGroups
+      .filter(group => group.collapsed)
+      .forEach((group) => {
+        if (isolatedGroupId && isolatedGroupId !== group.id) return;
+        const members = group.nodeIds.map(id => nodeMap.get(id)).filter(Boolean);
+        if (members.length === 0) return;
+
+        const x = members.reduce((sum, node) => sum + node.x, 0) / members.length;
+        const y = members.reduce((sum, node) => sum + node.y, 0) / members.length;
+        bubbleMap.set(group.id, {
+          id: `collapsed-group-${group.id}`,
+          groupId: group.id,
+          x,
+          y,
+          label: group.label,
+          emoji: group.emoji,
+          color: normalizeGroupColor(group.color),
+        });
+      });
+
+    return bubbleMap;
+  }, [nodes, normalizedFamilyGroups, isolatedGroupId]);
+
+  const renderedEdges = useMemo(() => {
+    const nodeMap = new Map(nodes.map(node => [node.id, node]));
+    const dedupe = new Set();
+    const output = [];
+
+    edges.forEach((edge) => {
+      const fromHidden = hiddenNodeIds.has(edge.from);
+      const toHidden = hiddenNodeIds.has(edge.to);
+      const fromCollapsedGroup = collapsedGroupByNodeId.get(edge.from);
+      const toCollapsedGroup = collapsedGroupByNodeId.get(edge.to);
+
+      let fromNode = nodeMap.get(edge.from);
+      let toNode = nodeMap.get(edge.to);
+
+      if (fromHidden || toHidden) {
+        if (fromHidden && fromCollapsedGroup) {
+          const bubble = collapsedGroupBubbleMap.get(fromCollapsedGroup);
+          if (bubble) fromNode = { id: edge.from, x: bubble.x, y: bubble.y };
+        }
+        if (toHidden && toCollapsedGroup) {
+          const bubble = collapsedGroupBubbleMap.get(toCollapsedGroup);
+          if (bubble) toNode = { id: edge.to, x: bubble.x, y: bubble.y };
+        }
+
+        const canRenderFromCollapsed = !fromHidden || Boolean(fromCollapsedGroup);
+        const canRenderToCollapsed = !toHidden || Boolean(toCollapsedGroup);
+        if (!canRenderFromCollapsed || !canRenderToCollapsed) return;
+
+        if (fromHidden && toHidden && fromCollapsedGroup === toCollapsedGroup) return;
+      }
+
+      if (!fromNode || !toNode) return;
+
+      const key = [
+        edge.type,
+        edge.label || '',
+        `${Math.round(fromNode.x)}:${Math.round(fromNode.y)}`,
+        `${Math.round(toNode.x)}:${Math.round(toNode.y)}`,
+      ].join('|');
+
+      if (dedupe.has(key)) return;
+      dedupe.add(key);
+
+      output.push({ edge, fromNode, toNode, renderKey: key });
+    });
+
+    return output;
+  }, [nodes, edges, hiddenNodeIds, collapsedGroupByNodeId, collapsedGroupBubbleMap]);
 
   const highlightedGroupNodeIds = useMemo(() => {
     const group = normalizedFamilyGroups.find(item => item.id === highlightedGroupId);
     return new Set(group?.nodeIds || []);
+  }, [normalizedFamilyGroups, highlightedGroupId]);
+
+  const highlightedGroupColor = useMemo(() => {
+    const group = normalizedFamilyGroups.find(item => item.id === highlightedGroupId);
+    return normalizeGroupColor(group?.color);
   }, [normalizedFamilyGroups, highlightedGroupId]);
 
   const {
@@ -401,6 +497,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       id: '',
       label: '',
       emoji: randomGroupEmoji(),
+      color: randomGroupColor(),
       nodeIds: [],
     });
   }, []);
@@ -414,6 +511,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       id: existing.id,
       label: existing.label,
       emoji: existing.emoji,
+      color: normalizeGroupColor(existing.color),
       nodeIds: [...existing.nodeIds],
     });
   }, [normalizedFamilyGroups]);
@@ -435,18 +533,22 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
           id: savedGroupId,
           label: groupDraft.label.trim(),
           emoji: groupDraft.emoji,
+          color: normalizeGroupColor(groupDraft.color, randomGroupColor()),
           nodeIds: [...new Set(groupDraft.nodeIds)],
           collapsed: false,
         },
       ];
     } else {
       savedGroupId = groupDraft.id;
+      const editedGroup = normalizedFamilyGroups.find(group => group.id === groupDraft.id);
+      const editedGroupCurrentColor = normalizeGroupColor(editedGroup?.color);
       nextGroups = normalizedFamilyGroups.map(group => (
         group.id === groupDraft.id
           ? {
             ...group,
             label: groupDraft.label.trim(),
             emoji: groupDraft.emoji,
+            color: normalizeGroupColor(groupDraft.color, editedGroupCurrentColor),
             nodeIds: [...new Set(groupDraft.nodeIds)],
           }
           : group
@@ -471,6 +573,10 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
     focusVisibleNodes(nextGroups, isolatedGroupId === groupId ? null : isolatedGroupId);
   }, [undoService, nodes, edges, customLinkTypes, normalizedFamilyGroups, isolatedGroupId, highlightedGroupId, saveAndUpdate, focusVisibleNodes]);
+
+  const handleIdentifyGroupMembers = useCallback((groupId) => {
+    setHighlightedGroupId(groupId);
+  }, []);
 
   // ---- Linking mode ----
   const cancelLinkingMode = useCallback(() => {
@@ -656,8 +762,10 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         onStartCreate={handleStartCreateGroup}
         onStartEdit={handleStartEditGroup}
         onDelete={handleDeleteGroup}
+        onIdentifyMembers={handleIdentifyGroupMembers}
         draft={groupDraft}
         onDraftLabelChange={(label) => setGroupDraft(prev => (prev ? { ...prev, label } : prev))}
+        onDraftColorChange={(color) => setGroupDraft(prev => (prev ? { ...prev, color } : prev))}
         onDraftEmojiRandom={() => setGroupDraft(prev => (prev ? { ...prev, emoji: randomGroupEmoji() } : prev))}
         onSaveDraft={handleSaveGroupDraft}
         onCancelDraft={() => setGroupDraft(null)}
@@ -690,19 +798,37 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
       <svg className="w-full h-full pointer-events-none">
         <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
-          {visibleEdges.map(edge => {
-            const from = nodes.find(n => n.id === edge.from);
-            const to = nodes.find(n => n.id === edge.to);
+          {renderedEdges.map(({ edge, fromNode, toNode, renderKey }) => {
             return (
               <FamilyEdge
-                key={edge.id}
+                key={renderKey}
                 edge={edge}
-                fromNode={from}
-                toNode={to}
+                fromNode={fromNode}
+                toNode={toNode}
                 onLineClick={handleLineClick}
               />
             );
           })}
+
+          {[...collapsedGroupBubbleMap.values()].map((bubble) => (
+            <g
+              key={bubble.id}
+              className="pointer-events-auto cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleCollapseGroup(bubble.groupId);
+              }}
+            >
+              <circle cx={bubble.x} cy={bubble.y} r="42" fill="white" stroke={bubble.color} strokeWidth="2.5" />
+              <circle cx={bubble.x} cy={bubble.y + 2} r="35" fill={bubble.color} opacity="0.12" />
+              <text x={bubble.x} y={bubble.y - 6} textAnchor="middle" className="text-[18px] pointer-events-none">
+                {bubble.emoji}
+              </text>
+              <text x={bubble.x} y={bubble.y + 13} textAnchor="middle" className="text-[10px] font-bold fill-gray-700 pointer-events-none">
+                {bubble.label}
+              </text>
+            </g>
+          ))}
 
           {visibleNodes.map(node => (
             <FamilyNode
@@ -712,6 +838,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
               isDimmed={linkingMode && node.id !== linkingMode.sourceId && node.id !== linkTarget}
               isLinkTarget={linkingMode && node.id === linkTarget}
               isGroupMemberHighlighted={highlightedGroupNodeIds.has(node.id) || (groupDraft?.nodeIds.includes(node.id) ?? false)}
+              groupHighlightColor={groupDraft?.color || highlightedGroupColor}
               onPointerDown={(e, id) => handleNodePointerDownWrapped(e, id)}
             />
           ))}

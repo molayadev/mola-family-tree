@@ -11,8 +11,10 @@ export default function FamilyGroupsModal({
   onStartCreate,
   onStartEdit,
   onDelete,
+  onIdentifyMembers,
   draft,
   onDraftLabelChange,
+  onDraftColorChange,
   onDraftEmojiRandom,
   onSaveDraft,
   onCancelDraft,
@@ -55,6 +57,18 @@ export default function FamilyGroupsModal({
                 onChange={(e) => onDraftLabelChange(e.target.value)}
                 placeholder="Ej. Familia de Ana y Carlos"
               />
+              <div className="mb-4">
+                <label htmlFor="family-group-color-input" className="block text-sm font-medium text-gray-600 mb-1 ml-1">
+                  Color del grupo
+                </label>
+                <input
+                  id="family-group-color-input"
+                  type="color"
+                  value={draft.color}
+                  onChange={(e) => onDraftColorChange(e.target.value)}
+                  className="w-full h-11 rounded-xl border border-gray-300 bg-white px-2"
+                />
+              </div>
               <p className="text-xs text-gray-600">
                 Selecciona nodos tocándolos en el árbol. Toca de nuevo para deseleccionar. Seleccionados: {draft.nodeIds.length}
               </p>
@@ -82,6 +96,7 @@ export default function FamilyGroupsModal({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-xl">{group.emoji}</span>
+                    <span className="w-3 h-3 rounded-full border border-gray-200" style={{ backgroundColor: group.color }} />
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-gray-800 truncate">{group.label}</p>
                       <p className="text-xs text-gray-500">{group.nodeIds.length} miembros</p>
@@ -92,12 +107,21 @@ export default function FamilyGroupsModal({
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2 mt-3">
+                  <button onClick={() => onIdentifyMembers(group.id)} className="px-2.5 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold">
+                    Identificar integrantes
+                  </button>
                   <button onClick={() => onShowOnly(group.id)} className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold">
                     Ver solo
                   </button>
-                  <button onClick={() => onToggleCollapse(group.id)} className="px-2.5 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-semibold">
-                    {group.collapsed ? 'Expandir grupo' : 'Colapsar grupo'}
-                  </button>
+                  <label className="px-2.5 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-semibold inline-flex items-center gap-2 cursor-pointer">
+                    <span>{group.collapsed ? 'Colapsado' : 'Expandido'}</span>
+                    <input
+                      type="checkbox"
+                      checked={!group.collapsed}
+                      onChange={() => onToggleCollapse(group.id)}
+                      className="accent-orange-500"
+                    />
+                  </label>
                   <button onClick={() => onStartEdit(group.id)} className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold">
                     Editar
                   </button>
