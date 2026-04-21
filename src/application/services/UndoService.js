@@ -1,26 +1,28 @@
 /**
  * UndoService manages the undo history for the family tree.
- * It maintains a stack of up to 5 previous states (nodes and edges).
+ * It maintains a stack of up to 5 previous states (nodes, edges, and customLinkTypes).
  * This service does NOT support redo functionality - only undo.
  */
 export class UndoService {
   constructor() {
     this.maxHistorySize = 5;
-    this.history = []; // Stack of previous states: [{ nodes, edges }, ...]
+    this.history = []; // Stack of previous states: [{ nodes, edges, customLinkTypes }, ...]
   }
 
   /**
-   * Save the current state (nodes and edges) to the history stack.
+   * Save the current state (nodes, edges, and customLinkTypes) to the history stack.
    * This should be called BEFORE performing any action that should be undoable.
    * 
    * @param {Array} nodes - Current nodes array
    * @param {Array} edges - Current edges array
+   * @param {Array} customLinkTypes - Current custom link types array
    */
-  saveState(nodes, edges) {
+  saveState(nodes, edges, customLinkTypes = []) {
     // Create deep copies to avoid reference issues
     const state = {
       nodes: JSON.parse(JSON.stringify(nodes)),
       edges: JSON.parse(JSON.stringify(edges)),
+      customLinkTypes: JSON.parse(JSON.stringify(customLinkTypes)),
     };
 
     this.history.push(state);
@@ -35,7 +37,7 @@ export class UndoService {
    * Undo the last action by retrieving the previous state.
    * Returns null if there's no history to undo.
    * 
-   * @returns {Object|null} Previous state { nodes, edges } or null if no history
+   * @returns {Object|null} Previous state { nodes, edges, customLinkTypes } or null if no history
    */
   undo() {
     if (this.history.length === 0) {

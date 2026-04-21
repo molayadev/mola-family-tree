@@ -13,7 +13,7 @@ import PartnerSelectionModal from '../modals/PartnerSelectionModal';
 import LinkTypeSelectionModal from '../modals/LinkTypeSelectionModal';
 import LinkTypesManagerModal from '../modals/LinkTypesManagerModal';
 
-export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, treeService, exportService, onSave, onLogout }) {
+export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, treeService, exportService, undoService, onSave, onLogout }) {
   const [actionsModal, setActionsModal] = useState({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
@@ -144,22 +144,20 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   // Track if we need to save state before node movement
   const nodeMovementStateRef = useRef({ savedForCurrentDrag: false });
 
-  const saveAndUpdate = useCallback((newNodes, newEdges) => {
-    onSave(newNodes, newEdges);
-  }, [onSave]);
   const saveAndUpdate = useCallback((newNodes, newEdges, newCustomLinkTypes) => {
     const resolvedCustomLinkTypes = newCustomLinkTypes ?? customLinkTypes;
     onSave(newNodes, newEdges, resolvedCustomLinkTypes);
   }, [onSave, customLinkTypes]);
 
   // Wrapper for node movement that saves state on first move
-  const saveAndUpdateWithUndo = useCallback((newNodes, newEdges) => {
+  const saveAndUpdateWithUndo = useCallback((newNodes, newEdges, newCustomLinkTypes) => {
     if (!nodeMovementStateRef.current.savedForCurrentDrag) {
-      undoService.saveState(nodes, edges);
+      undoService.saveState(nodes, edges, customLinkTypes);
       nodeMovementStateRef.current.savedForCurrentDrag = true;
     }
-    onSave(newNodes, newEdges);
-  }, [onSave, nodes, edges, undoService]);
+    const resolvedCustomLinkTypes = newCustomLinkTypes ?? customLinkTypes;
+    onSave(newNodes, newEdges, resolvedCustomLinkTypes);
+  }, [onSave, nodes, edges, customLinkTypes, undoService]);
 
   // Reset the flag when drag ends
   const handleDragEnd = useCallback(() => {
@@ -180,12 +178,12 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [openActionsModal]);
 
   const confirmAddChild = useCallback((sourceId, partnerId) => {
-    undoService.saveState(nodes, edges);
+    undoService.saveState(nodes, edges, customLinkTypes);
     const result = treeService.addChild(nodes, edges, sourceId, partnerId);
     saveAndUpdate(result.nodes, result.edges);
     setPartnerSelection(null);
     setTimeout(() => fitToScreen(result.nodes), 100);
-  }, [nodes, edges, treeService, saveAndUpdate, fitToScreen, undoService]);
+  }, [nodes, edges, customLinkTypes, treeService, saveAndUpdate, fitToScreen, undoService]);
 
   const enterLinkingMode = useCallback((sourceId) => {
     closeActionsModal();
@@ -202,7 +200,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     if (action === 'add_parents') {
       // Guard: skip if node already has parents
       if (treeService.hasParents(edges, nodeId)) return;
-      undoService.saveState(nodes, edges);
+      undoService.saveState(nodes, edges, customLinkTypes);
       const result = treeService.addParents(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
@@ -220,19 +218,19 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     } else if (action === 'add_spouse') {
       // Guard: skip if node already has a current spouse
       if (treeService.hasSpouse(edges, nodeId)) return;
-      undoService.saveState(nodes, edges);
+      undoService.saveState(nodes, edges, customLinkTypes);
       const result = treeService.addSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'add_ex_spouse') {
-      undoService.saveState(nodes, edges);
+      undoService.saveState(nodes, edges, customLinkTypes);
       const result = treeService.addExSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'delete') {
-      undoService.saveState(nodes, edges);
+      undoService.saveState(nodes, edges, customLinkTypes);
       const result = treeService.deleteNode(nodes, edges, nodeId);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
@@ -240,28 +238,28 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     } else if (action === 'link') {
       enterLinkingMode(nodeId);
     }
-  }, [actionsModal.nodeId, nodes, edges, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal, enterLinkingMode, undoService]);
+  }, [actionsModal.nodeId, nodes, edges, customLinkTypes, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal, enterLinkingMode, undoService]);
 
   const handleUpdateNode = useCallback((nodeId, newData) => {
-    undoService.saveState(nodes, edges);
+    undoService.saveState(nodes, edges, customLinkTypes);
     const updatedNodes = treeService.updateNode(nodes, nodeId, newData);
     saveAndUpdate(updatedNodes, edges);
     closeActionsModal();
-  }, [nodes, edges, treeService, saveAndUpdate, closeActionsModal, undoService]);
+  }, [nodes, edges, customLinkTypes, treeService, saveAndUpdate, closeActionsModal, undoService]);
 
   const handleUpdateLink = useCallback((edgeId, updates) => {
-    undoService.saveState(nodes, edges);
+    undoService.saveState(nodes, edges, customLinkTypes);
     const result = treeService.updateLink(nodes, edges, edgeId, updates, actionsModal.nodeId);
     saveAndUpdate(result.nodes, result.edges);
-  }, [nodes, edges, treeService, actionsModal.nodeId, saveAndUpdate, undoService]);
+  }, [nodes, edges, customLinkTypes, treeService, actionsModal.nodeId, saveAndUpdate, undoService]);
 
   const handleDeleteLink = useCallback((edgeId) => {
     if (window.confirm('¿Seguro que deseas eliminar este vínculo? (La persona seguirá existiendo en el árbol)')) {
-      undoService.saveState(nodes, edges);
+      undoService.saveState(nodes, edges, customLinkTypes);
       const newEdges = treeService.deleteLink(edges, edgeId);
       saveAndUpdate(nodes, newEdges);
     }
-  }, [nodes, edges, treeService, saveAndUpdate, undoService]);
+  }, [nodes, edges, customLinkTypes, treeService, saveAndUpdate, undoService]);
 
   const handleExport = useCallback(() => {
     exportService.exportTree(username, nodes, edges, customLinkTypes);
@@ -273,12 +271,12 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
   const handleOrganize = useCallback(() => {
     // Save state before organizing
-    undoService.saveState(nodes, edges);
+    undoService.saveState(nodes, edges, customLinkTypes);
     setCollapsedFamilies(new Set()); // expand all before reorganizing layout
     const organizedNodes = treeService.organizeByLevels(nodes, edges);
     saveAndUpdate(organizedNodes, edges);
     setTimeout(() => fitToScreen(organizedNodes), 100);
-  }, [nodes, edges, treeService, saveAndUpdate, fitToScreen, undoService]);
+  }, [nodes, edges, customLinkTypes, treeService, saveAndUpdate, fitToScreen, undoService]);
 
   // ---- Undo functionality ----
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -287,7 +285,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const handleUndo = useCallback(() => {
     const previousState = undoService.undo();
     if (previousState) {
-      saveAndUpdate(previousState.nodes, previousState.edges);
+      saveAndUpdate(previousState.nodes, previousState.edges, previousState.customLinkTypes);
       setTimeout(() => fitToScreen(previousState.nodes), 100);
     }
   }, [undoService, saveAndUpdate, fitToScreen]);
@@ -306,12 +304,12 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
   const handleLinkTypeChosen = useCallback((linkType) => {
     if (!linkingMode || !linkTarget) return;
-    undoService.saveState(nodes, edges);
+    undoService.saveState(nodes, edges, customLinkTypes);
     const newEdges = treeService.linkNodes(edges, linkingMode.sourceId, linkTarget, linkType, undefined, customLinkTypes);
     saveAndUpdate(nodes, newEdges);
     setLinkingMode(null);
     setLinkTarget(null);
-  }, [linkingMode, linkTarget, edges, nodes, treeService, saveAndUpdate, undoService, customLinkTypes]);
+  }, [linkingMode, linkTarget, edges, nodes, customLinkTypes, treeService, saveAndUpdate, undoService]);
 
   const handleSaveCustomLinkTypes = useCallback((nextCustomLinkTypes) => {
     const syncedEdges = treeService.syncCustomLinkEdges(edges, nextCustomLinkTypes);
