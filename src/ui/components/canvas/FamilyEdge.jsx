@@ -15,7 +15,7 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
 
   const isPartner = isPartnerEdgeType(edge.type);
   const currentLabel = resolveEdgeLabel(edge);
-  const isBroken = isBrokenLabel(currentLabel);
+  const isBroken = edge.type === EDGE_TYPES.EX_SPOUSE || isBrokenLabel(currentLabel);
 
   let d = '';
   let strokeColor;
