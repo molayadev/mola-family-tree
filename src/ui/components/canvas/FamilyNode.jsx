@@ -55,7 +55,7 @@ function GenderIcon({ gender, className }) {
   return <UnknownIcon className={className} />;
 }
 
-export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, onPointerDown }) {
+export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, isGroupMemberHighlighted, groupHighlightColor, onPointerDown }) {
   const deceased = isDeceased(node.data);
   const style = COLORS[node.data.gender] || COLORS.unknown;
 
@@ -113,6 +113,9 @@ export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, o
       <text y="60" textAnchor="middle" className="text-[9px] fill-gray-500 pointer-events-none">
         {dateText}
       </text>
+      {isGroupMemberHighlighted && !isDimmed && (
+        <line x1="-20" y1="66" x2="20" y2="66" stroke={groupHighlightColor || '#F97316'} strokeWidth="3" strokeLinecap="round" />
+      )}
     </g>
   );
 }

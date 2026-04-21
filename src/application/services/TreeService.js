@@ -7,8 +7,8 @@ export class TreeService {
     this.storage = storageAdapter;
   }
 
-  save(username, nodes, edges, customLinkTypes = []) {
-    this.storage.saveUserData(username, null, nodes, edges, customLinkTypes);
+  save(username, nodes, edges, customLinkTypes = [], familyGroups = []) {
+    this.storage.saveUserData(username, null, nodes, edges, customLinkTypes, familyGroups);
   }
 
   addParents(nodes, edges, sourceNode) {
