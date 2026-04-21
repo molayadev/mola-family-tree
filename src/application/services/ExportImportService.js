@@ -11,7 +11,8 @@ export class ExportImportService {
       }
 
       const migratedNodes = json.nodes.map(ExportImportService.migrateNodeData);
-      this.storage.importUserData(json.user, json.password, migratedNodes, json.edges);
+      const migratedCustomLinkTypes = ExportImportService.migrateCustomLinkTypes(json.customLinkTypes || []);
+      this.storage.importUserData(json.user, json.password, migratedNodes, json.edges, migratedCustomLinkTypes);
       return json.user;
     } catch (error) {
       if (error.message === 'El archivo no tiene el formato correcto.') {
@@ -21,7 +22,7 @@ export class ExportImportService {
     }
   }
 
-  exportTree(username, nodes, edges) {
+  exportTree(username, nodes, edges, customLinkTypes = []) {
     const userData = this.storage.getUserData(username);
     const userPass = userData?.password || '';
 
@@ -30,6 +31,7 @@ export class ExportImportService {
       password: userPass,
       nodes,
       edges,
+      customLinkTypes,
     };
 
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData, null, 2));
@@ -82,6 +84,30 @@ export class ExportImportService {
     if (migrated.birthOrder === undefined) migrated.birthOrder = '';
 
     return { ...node, data: migrated };
+  }
+
+  static migrateCustomLinkTypes(customLinkTypes) {
+    if (!Array.isArray(customLinkTypes)) return [];
+    const validModes = new Set(['solid', 'dashed', 'badge']);
+    return customLinkTypes
+      .filter(Boolean)
+      .map((item, index) => {
+        const name = String(item.name || '').trim();
+        const visualType = validModes.has(item.visualType) ? item.visualType : 'solid';
+        const sanitizedSeed = `${name}-${visualType}-${index}`
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '');
+        const deterministicId = `legacy-${sanitizedSeed || index}`;
+        return {
+          id: String(item.id || deterministicId),
+          name,
+          visualType,
+          color: typeof item.color === 'string' && item.color.trim() ? item.color.trim() : '#8B5CF6',
+        };
+      })
+      .filter(item => item.name.length > 0);
   }
 
   importTree(file) {

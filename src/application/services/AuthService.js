@@ -15,10 +15,11 @@ export class AuthService {
       // Migrate legacy birthYear/deathYear data on load
       const nodes = (user.treeData?.nodes || []).map(ExportImportService.migrateNodeData);
       const edges = user.treeData?.edges || [];
+      const customLinkTypes = ExportImportService.migrateCustomLinkTypes(user.treeData?.customLinkTypes || []);
       return {
         success: true,
         user: { username },
-        treeData: { nodes, edges },
+        treeData: { nodes, edges, customLinkTypes },
       };
     }
     return { success: false, error: 'Credenciales inválidas' };
@@ -31,12 +32,12 @@ export class AuthService {
     }
 
     const nodes = initialNode ? [initialNode] : [];
-    this.storage.saveUserData(username, password, nodes, []);
+    this.storage.saveUserData(username, password, nodes, [], []);
 
     return {
       success: true,
       user: { username },
-      treeData: { nodes, edges: [] },
+      treeData: { nodes, edges: [], customLinkTypes: [] },
     };
   }
 }
