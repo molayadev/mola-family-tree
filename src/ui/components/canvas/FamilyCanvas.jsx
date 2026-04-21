@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Move, Link as LinkIcon, X } from 'lucide-react';
-import { isPartnerEdgeType } from '../../../domain/config/constants';
+import { isPartnerEdgeType, isBrokenLabel } from '../../../domain/config/constants';
+import { generateId } from '../../../domain/entities/Node';
 import { useCanvas } from '../../../application/hooks/useCanvas';
 import { downloadTreeSnapshot } from '../../../application/services/SnapshotService';
 import CanvasHUD from './CanvasHUD';
@@ -11,106 +12,140 @@ import NodeActionsModal from '../modals/NodeActionsModal';
 import PartnerSelectionModal from '../modals/PartnerSelectionModal';
 import LinkTypeSelectionModal from '../modals/LinkTypeSelectionModal';
 import LinkTypesManagerModal from '../modals/LinkTypesManagerModal';
+import FamilyGroupsModal from '../modals/FamilyGroupsModal';
 
-export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, treeService, exportService, undoService, onSave, onLogout }) {
+const GROUP_EMOJIS = ['👨‍👩‍👧', '👨‍👩‍👧‍👦', '👩‍👩‍👦', '👨‍👨‍👧', '🏡', '💞', '🌳', '💫', '🫶', '✨'];
+
+const randomGroupEmoji = () => GROUP_EMOJIS[Math.floor(Math.random() * GROUP_EMOJIS.length)];
+
+const normalizeFamilyGroups = (groups, nodes) => {
+  const validNodeIds = new Set(nodes.map(n => n.id));
+  return (Array.isArray(groups) ? groups : [])
+    .filter(Boolean)
+    .map((group, index) => {
+      const nodeIds = Array.isArray(group.nodeIds)
+        ? [...new Set(group.nodeIds.filter(id => validNodeIds.has(id)))]
+        : [];
+      return {
+        id: String(group.id || `family-group-${index}`),
+        label: String(group.label || '').trim(),
+        emoji: String(group.emoji || randomGroupEmoji()),
+        nodeIds,
+        collapsed: Boolean(group.collapsed),
+      };
+    })
+    .filter(group => group.label.length > 0 && group.nodeIds.length > 0);
+};
+
+const computeHiddenNodeIds = (nodes, groups, isolatedGroupId) => {
+  const hidden = new Set();
+  const allNodeIds = new Set(nodes.map(n => n.id));
+
+  if (isolatedGroupId) {
+    const isolated = groups.find(group => group.id === isolatedGroupId);
+    if (isolated) {
+      const visibleSet = new Set(isolated.nodeIds);
+      allNodeIds.forEach((id) => {
+        if (!visibleSet.has(id)) hidden.add(id);
+      });
+    }
+  }
+
+  groups.forEach((group) => {
+    if (!group.collapsed) return;
+    group.nodeIds.forEach((id) => {
+      if (allNodeIds.has(id)) hidden.add(id);
+    });
+  });
+
+  return hidden;
+};
+
+const computeVisibleNodes = (nodes, groups, isolatedGroupId) => {
+  const hidden = computeHiddenNodeIds(nodes, groups, isolatedGroupId);
+  return nodes.filter(n => !hidden.has(n.id));
+};
+
+const buildAutoFamilyGroups = (nodes, edges) => {
+  if (nodes.length < 2 || edges.length === 0) return [];
+
+  const childrenOf = {};
+  const childParents = {};
+  const spouseMap = {};
+
+  edges.forEach((edge) => {
+    if (edge.type === 'parent') {
+      (childrenOf[edge.from] ??= []).push(edge.to);
+      (childParents[edge.to] ??= new Set()).add(edge.from);
+      return;
+    }
+
+    if (!isPartnerEdgeType(edge.type)) return;
+    if (isBrokenLabel(edge.label)) return;
+
+    (spouseMap[edge.from] ??= new Set()).add(edge.to);
+    (spouseMap[edge.to] ??= new Set()).add(edge.from);
+  });
+
+  const nuclei = Object.values(childParents)
+    .map((set) => [...set].sort())
+    .filter((parents) => parents.length > 0);
+
+  const uniqueNucleiKeys = [...new Set(nuclei.map((parents) => parents.join(':')))];
+
+  return uniqueNucleiKeys.map((key, index) => {
+    const parents = key.split(':').filter(Boolean);
+    const children = Object.entries(childParents)
+      .filter(([, parentSet]) => [...parentSet].sort().join(':') === key)
+      .map(([childId]) => childId);
+
+    const members = new Set([...parents, ...children]);
+
+    children.forEach((childId) => {
+      (childrenOf[childId] || []).forEach((grandchildId) => members.add(grandchildId));
+      (spouseMap[childId] || new Set()).forEach((spouseId) => members.add(spouseId));
+    });
+
+    return {
+      id: `auto-family-group-${index + 1}`,
+      label: `Núcleo familiar ${index + 1}`,
+      emoji: randomGroupEmoji(),
+      nodeIds: [...members],
+      collapsed: false,
+    };
+  });
+};
+
+export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, familyGroups, treeService, exportService, undoService, onSave, onLogout }) {
   const [actionsModal, setActionsModal] = useState({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
   const [linkTypesModalOpen, setLinkTypesModalOpen] = useState(false);
+  const [familyGroupsModalOpen, setFamilyGroupsModalOpen] = useState(false);
+  const [isolatedGroupId, setIsolatedGroupId] = useState(null);
+  const [highlightedGroupId, setHighlightedGroupId] = useState(null);
+  const [groupDraft, setGroupDraft] = useState(null);
 
   // Linking mode state
   const [linkingMode, setLinkingMode] = useState(null); // { sourceId } or null
   const [linkTarget, setLinkTarget] = useState(null);    // target nodeId or null
 
-  // ── Collapse / expand family nuclei ──────────────────────────────────
-  const [collapsedFamilies, setCollapsedFamilies] = useState(new Set());
+  const autoGroupsInitializedRef = useRef(false);
 
-  // A family nucleus = a set of parents that share at least one child
-  const familyNuclei = useMemo(() => {
-    const childParents = {};
-    edges.forEach(e => {
-      if (e.type === 'parent') {
-        (childParents[e.to] ??= new Set()).add(e.from);
-      }
-    });
-    const nucleiMap = {};
-    Object.entries(childParents).forEach(([childId, parentSet]) => {
-      const key = [...parentSet].sort().join(':');
-      if (!nucleiMap[key]) nucleiMap[key] = { id: key, parents: [...parentSet], children: [] };
-      nucleiMap[key].children.push(childId);
-    });
-    return Object.values(nucleiMap);
-  }, [edges]);
+  const normalizedFamilyGroups = useMemo(() => normalizeFamilyGroups(familyGroups, nodes), [familyGroups, nodes]);
 
-  // Compute which node IDs are hidden due to collapsed families
-  const hiddenNodeIds = useMemo(() => {
-    if (collapsedFamilies.size === 0) return new Set();
-    const hidden = new Set();
-    const childrenOf = {};
-    const partnersOf = {};
-    edges.forEach(e => {
-      if (e.type === 'parent') {
-        (childrenOf[e.from] ??= []).push(e.to);
-      } else if (isPartnerEdgeType(e.type)) {
-        (partnersOf[e.from] ??= []).push(e.to);
-        (partnersOf[e.to] ??= []).push(e.from);
-      }
-    });
-    collapsedFamilies.forEach(familyId => {
-      const nucleus = familyNuclei.find(n => n.id === familyId);
-      if (!nucleus) return;
-      const queue = [...nucleus.children];
-      queue.forEach(id => hidden.add(id));
-      let head = 0;
-      while (head < queue.length) {
-        const cur = queue[head++];
-        (partnersOf[cur] || []).forEach(pid => {
-          if (!hidden.has(pid) && !nucleus.parents.includes(pid)) {
-            hidden.add(pid); queue.push(pid);
-          }
-        });
-        (childrenOf[cur] || []).forEach(cid => {
-          if (!hidden.has(cid)) { hidden.add(cid); queue.push(cid); }
-        });
-      }
-    });
-    return hidden;
-  }, [collapsedFamilies, familyNuclei, edges]);
+  const hiddenNodeIds = useMemo(
+    () => computeHiddenNodeIds(nodes, normalizedFamilyGroups, isolatedGroupId),
+    [nodes, normalizedFamilyGroups, isolatedGroupId],
+  );
 
   const visibleNodes = useMemo(() => nodes.filter(n => !hiddenNodeIds.has(n.id)), [nodes, hiddenNodeIds]);
   const visibleEdges = useMemo(() => edges.filter(e => !hiddenNodeIds.has(e.from) && !hiddenNodeIds.has(e.to)), [edges, hiddenNodeIds]);
 
-  const toggleCollapse = useCallback((familyId) => {
-    setCollapsedFamilies(prev => {
-      const next = new Set(prev);
-      if (next.has(familyId)) next.delete(familyId);
-      else next.add(familyId);
-      return next;
-    });
-  }, []);
-
-  const handleToggleCollapseAll = useCallback(() => {
-    if (collapsedFamilies.size > 0) {
-      setCollapsedFamilies(new Set());
-    } else {
-      setCollapsedFamilies(new Set(familyNuclei.map(n => n.id)));
-    }
-  }, [collapsedFamilies, familyNuclei]);
-
-  // Collapse-toggle positions (rendered in SVG)
-  const collapseToggles = useMemo(() => {
-    return familyNuclei
-      .filter(nucleus => nucleus.parents.some(pid => !hiddenNodeIds.has(pid)))
-      .map(nucleus => {
-        const isCollapsed = collapsedFamilies.has(nucleus.id);
-        const parentNodes = nucleus.parents.map(pid => nodes.find(n => n.id === pid)).filter(Boolean);
-        if (parentNodes.length === 0) return null;
-        const avgX = parentNodes.reduce((s, n) => s + n.x, 0) / parentNodes.length;
-        const maxY = Math.max(...parentNodes.map(n => n.y));
-        return { id: nucleus.id, x: avgX, y: maxY + 70, parentMaxY: maxY, isCollapsed, childCount: nucleus.children.length };
-      })
-      .filter(Boolean);
-  }, [familyNuclei, collapsedFamilies, hiddenNodeIds, nodes]);
+  const highlightedGroupNodeIds = useMemo(() => {
+    const group = normalizedFamilyGroups.find(item => item.id === highlightedGroupId);
+    return new Set(group?.nodeIds || []);
+  }, [normalizedFamilyGroups, highlightedGroupId]);
 
   const {
     transform,
@@ -134,28 +169,44 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     if (nodes.length > 0) {
       const timer = setTimeout(() => fitToScreen(nodes), 100);
       return () => clearTimeout(timer);
-    } else {
-      setTransform({ x: window.innerWidth / 2, y: window.innerHeight / 2, k: 1 });
     }
+    setTransform({ x: window.innerWidth / 2, y: window.innerHeight / 2, k: 1 });
+    return undefined;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track if we need to save state before node movement
   const nodeMovementStateRef = useRef({ savedForCurrentDrag: false });
 
-  const saveAndUpdate = useCallback((newNodes, newEdges, newCustomLinkTypes) => {
+  const saveAndUpdate = useCallback((newNodes, newEdges, newCustomLinkTypes, newFamilyGroups) => {
     const resolvedCustomLinkTypes = newCustomLinkTypes ?? customLinkTypes;
-    onSave(newNodes, newEdges, resolvedCustomLinkTypes);
-  }, [onSave, customLinkTypes]);
+    const resolvedFamilyGroups = normalizeFamilyGroups(newFamilyGroups ?? normalizedFamilyGroups, newNodes);
+    onSave(newNodes, newEdges, resolvedCustomLinkTypes, resolvedFamilyGroups);
+  }, [onSave, customLinkTypes, normalizedFamilyGroups]);
+
+  // Auto-generate groups on first data load
+  useEffect(() => {
+    if (autoGroupsInitializedRef.current) return;
+    if (nodes.length === 0) return;
+
+    autoGroupsInitializedRef.current = true;
+    if (normalizedFamilyGroups.length > 0) return;
+
+    const generated = buildAutoFamilyGroups(nodes, edges);
+    if (generated.length === 0) return;
+
+    saveAndUpdate(nodes, edges, customLinkTypes, generated);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups.length, saveAndUpdate]);
 
   // Wrapper for node movement that saves state on first move
-  const saveAndUpdateWithUndo = useCallback((newNodes, newEdges, newCustomLinkTypes) => {
+  const saveAndUpdateWithUndo = useCallback((newNodes, newEdges, newCustomLinkTypes, newFamilyGroups) => {
     if (!nodeMovementStateRef.current.savedForCurrentDrag) {
-      undoService.saveState(nodes, edges, customLinkTypes);
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       nodeMovementStateRef.current.savedForCurrentDrag = true;
     }
     const resolvedCustomLinkTypes = newCustomLinkTypes ?? customLinkTypes;
-    onSave(newNodes, newEdges, resolvedCustomLinkTypes);
-  }, [onSave, nodes, edges, customLinkTypes, undoService]);
+    const resolvedFamilyGroups = newFamilyGroups ?? normalizedFamilyGroups;
+    onSave(newNodes, newEdges, resolvedCustomLinkTypes, resolvedFamilyGroups);
+  }, [onSave, nodes, edges, customLinkTypes, normalizedFamilyGroups, undoService]);
 
   // Reset the flag when drag ends
   const handleDragEnd = useCallback(() => {
@@ -171,17 +222,28 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     setActionsModal({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
   }, []);
 
+  const selectGroupFromNode = useCallback((nodeId) => {
+    const group = normalizedFamilyGroups.find(item => item.nodeIds.includes(nodeId));
+    setHighlightedGroupId(group?.id || null);
+  }, [normalizedFamilyGroups]);
+
   const handleLineClick = useCallback((edgeId, sourceNodeId) => {
     openActionsModal(sourceNodeId, 'links', edgeId);
-  }, [openActionsModal]);
+    selectGroupFromNode(sourceNodeId);
+  }, [openActionsModal, selectGroupFromNode]);
+
+  const focusVisibleNodes = useCallback((nextGroups, nextIsolatedGroupId = isolatedGroupId) => {
+    const nextVisible = computeVisibleNodes(nodes, nextGroups, nextIsolatedGroupId);
+    setTimeout(() => fitToScreen(nextVisible.length > 0 ? nextVisible : nodes), 100);
+  }, [nodes, isolatedGroupId, fitToScreen]);
 
   const confirmAddChild = useCallback((sourceId, partnerId) => {
-    undoService.saveState(nodes, edges, customLinkTypes);
+    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const result = treeService.addChild(nodes, edges, sourceId, partnerId);
     saveAndUpdate(result.nodes, result.edges);
     setPartnerSelection(null);
     setTimeout(() => fitToScreen(result.nodes), 100);
-  }, [nodes, edges, customLinkTypes, treeService, saveAndUpdate, fitToScreen, undoService]);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, undoService]);
 
   const enterLinkingMode = useCallback((sourceId) => {
     closeActionsModal();
@@ -196,9 +258,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     const sourceNode = nodes.find(n => n.id === nodeId);
 
     if (action === 'add_parents') {
-      // Guard: skip if node already has parents
       if (treeService.hasParents(edges, nodeId)) return;
-      undoService.saveState(nodes, edges, customLinkTypes);
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       const result = treeService.addParents(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
@@ -214,21 +275,20 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       closeActionsModal();
       return;
     } else if (action === 'add_spouse') {
-      // Guard: skip if node already has a current spouse
       if (treeService.hasSpouse(edges, nodeId)) return;
-      undoService.saveState(nodes, edges, customLinkTypes);
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       const result = treeService.addSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'add_ex_spouse') {
-      undoService.saveState(nodes, edges, customLinkTypes);
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       const result = treeService.addExSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'delete') {
-      undoService.saveState(nodes, edges, customLinkTypes);
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       const result = treeService.deleteNode(nodes, edges, nodeId);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
@@ -236,57 +296,183 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     } else if (action === 'link') {
       enterLinkingMode(nodeId);
     }
-  }, [actionsModal.nodeId, nodes, edges, customLinkTypes, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal, enterLinkingMode, undoService]);
+  }, [actionsModal.nodeId, nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal, enterLinkingMode, undoService]);
 
   const handleUpdateNode = useCallback((nodeId, newData) => {
-    undoService.saveState(nodes, edges, customLinkTypes);
+    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const updatedNodes = treeService.updateNode(nodes, nodeId, newData);
     saveAndUpdate(updatedNodes, edges);
     closeActionsModal();
-  }, [nodes, edges, customLinkTypes, treeService, saveAndUpdate, closeActionsModal, undoService]);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, closeActionsModal, undoService]);
 
   const handleUpdateLink = useCallback((edgeId, updates) => {
-    undoService.saveState(nodes, edges, customLinkTypes);
+    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const result = treeService.updateLink(nodes, edges, edgeId, updates, actionsModal.nodeId);
     saveAndUpdate(result.nodes, result.edges);
-  }, [nodes, edges, customLinkTypes, treeService, actionsModal.nodeId, saveAndUpdate, undoService]);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, actionsModal.nodeId, saveAndUpdate, undoService]);
 
   const handleDeleteLink = useCallback((edgeId) => {
     if (window.confirm('¿Seguro que deseas eliminar este vínculo? (La persona seguirá existiendo en el árbol)')) {
-      undoService.saveState(nodes, edges, customLinkTypes);
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       const newEdges = treeService.deleteLink(edges, edgeId);
       saveAndUpdate(nodes, newEdges);
     }
-  }, [nodes, edges, customLinkTypes, treeService, saveAndUpdate, undoService]);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, undoService]);
 
   const handleExport = useCallback(() => {
-    exportService.exportTree(username, nodes, edges, customLinkTypes);
-  }, [username, nodes, edges, customLinkTypes, exportService]);
+    exportService.exportTree(username, nodes, edges, customLinkTypes, normalizedFamilyGroups);
+  }, [username, nodes, edges, customLinkTypes, normalizedFamilyGroups, exportService]);
 
   const handleSnapshot = useCallback(() => {
     downloadTreeSnapshot(username, nodes, edges);
   }, [username, nodes, edges]);
 
   const handleOrganize = useCallback(() => {
-    // Save state before organizing
-    undoService.saveState(nodes, edges, customLinkTypes);
-    setCollapsedFamilies(new Set()); // expand all before reorganizing layout
+    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
+    const expandedGroups = normalizedFamilyGroups.map(group => ({ ...group, collapsed: false }));
+    setIsolatedGroupId(null);
     const organizedNodes = treeService.organizeByLevels(nodes, edges);
-    saveAndUpdate(organizedNodes, edges);
+    saveAndUpdate(organizedNodes, edges, customLinkTypes, expandedGroups);
     setTimeout(() => fitToScreen(organizedNodes), 100);
-  }, [nodes, edges, customLinkTypes, treeService, saveAndUpdate, fitToScreen, undoService]);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, undoService]);
 
   // ---- Undo functionality ----
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const canUndo = useMemo(() => undoService.canUndo(), [undoService, nodes, edges]);
+  const canUndo = useMemo(() => undoService.canUndo(), [undoService, nodes, edges, normalizedFamilyGroups]);
 
   const handleUndo = useCallback(() => {
     const previousState = undoService.undo();
-    if (previousState) {
-      saveAndUpdate(previousState.nodes, previousState.edges, previousState.customLinkTypes);
-      setTimeout(() => fitToScreen(previousState.nodes), 100);
-    }
+    if (!previousState) return;
+
+    setIsolatedGroupId(null);
+    setHighlightedGroupId(null);
+    saveAndUpdate(
+      previousState.nodes,
+      previousState.edges,
+      previousState.customLinkTypes,
+      previousState.familyGroups || [],
+    );
+    setTimeout(() => fitToScreen(previousState.nodes), 100);
   }, [undoService, saveAndUpdate, fitToScreen]);
+
+  // ---- Family groups actions ----
+  const handleShowOnlyGroup = useCallback((groupId) => {
+    const nextIsolated = isolatedGroupId === groupId ? null : groupId;
+    const nextGroups = normalizedFamilyGroups.map(group => (
+      group.id === groupId ? { ...group, collapsed: false } : group
+    ));
+
+    if (nextIsolated === null) {
+      setIsolatedGroupId(null);
+      focusVisibleNodes(nextGroups, null);
+      return;
+    }
+
+    setIsolatedGroupId(groupId);
+    saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
+    setHighlightedGroupId(groupId);
+    focusVisibleNodes(nextGroups, groupId);
+  }, [isolatedGroupId, normalizedFamilyGroups, nodes, edges, customLinkTypes, saveAndUpdate, focusVisibleNodes]);
+
+  const handleToggleCollapseGroup = useCallback((groupId) => {
+    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
+    const nextGroups = normalizedFamilyGroups.map(group => (
+      group.id === groupId ? { ...group, collapsed: !group.collapsed } : group
+    ));
+    saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
+    focusVisibleNodes(nextGroups);
+  }, [undoService, nodes, edges, customLinkTypes, normalizedFamilyGroups, saveAndUpdate, focusVisibleNodes]);
+
+  const handleExpandAllGroups = useCallback(() => {
+    const hadCollapsed = normalizedFamilyGroups.some(group => group.collapsed);
+    setIsolatedGroupId(null);
+
+    const nextGroups = normalizedFamilyGroups.map(group => ({ ...group, collapsed: false }));
+    if (hadCollapsed) {
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
+      saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
+    }
+
+    setHighlightedGroupId(null);
+    focusVisibleNodes(nextGroups, null);
+  }, [normalizedFamilyGroups, undoService, nodes, edges, customLinkTypes, saveAndUpdate, focusVisibleNodes]);
+
+  const handleStartCreateGroup = useCallback(() => {
+    setGroupDraft({
+      mode: 'create',
+      id: '',
+      label: '',
+      emoji: randomGroupEmoji(),
+      nodeIds: [],
+    });
+  }, []);
+
+  const handleStartEditGroup = useCallback((groupId) => {
+    const existing = normalizedFamilyGroups.find(group => group.id === groupId);
+    if (!existing) return;
+
+    setGroupDraft({
+      mode: 'edit',
+      id: existing.id,
+      label: existing.label,
+      emoji: existing.emoji,
+      nodeIds: [...existing.nodeIds],
+    });
+  }, [normalizedFamilyGroups]);
+
+  const handleSaveGroupDraft = useCallback(() => {
+    if (!groupDraft) return;
+    if (!groupDraft.label.trim() || groupDraft.nodeIds.length === 0) return;
+
+    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
+
+    let nextGroups;
+    let savedGroupId;
+
+    if (groupDraft.mode === 'create') {
+      savedGroupId = `family-group-${generateId()}`;
+      nextGroups = [
+        ...normalizedFamilyGroups,
+        {
+          id: savedGroupId,
+          label: groupDraft.label.trim(),
+          emoji: groupDraft.emoji,
+          nodeIds: [...new Set(groupDraft.nodeIds)],
+          collapsed: false,
+        },
+      ];
+    } else {
+      savedGroupId = groupDraft.id;
+      nextGroups = normalizedFamilyGroups.map(group => (
+        group.id === groupDraft.id
+          ? {
+            ...group,
+            label: groupDraft.label.trim(),
+            emoji: groupDraft.emoji,
+            nodeIds: [...new Set(groupDraft.nodeIds)],
+          }
+          : group
+      ));
+    }
+
+    saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
+    setHighlightedGroupId(savedGroupId);
+    setGroupDraft(null);
+    focusVisibleNodes(nextGroups);
+  }, [groupDraft, undoService, nodes, edges, customLinkTypes, normalizedFamilyGroups, saveAndUpdate, focusVisibleNodes]);
+
+  const handleDeleteGroup = useCallback((groupId) => {
+    if (!window.confirm('¿Seguro que deseas eliminar este grupo familiar?')) return;
+
+    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
+    const nextGroups = normalizedFamilyGroups.filter(group => group.id !== groupId);
+
+    if (isolatedGroupId === groupId) setIsolatedGroupId(null);
+    if (highlightedGroupId === groupId) setHighlightedGroupId(null);
+
+    saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
+    focusVisibleNodes(nextGroups, isolatedGroupId === groupId ? null : isolatedGroupId);
+  }, [undoService, nodes, edges, customLinkTypes, normalizedFamilyGroups, isolatedGroupId, highlightedGroupId, saveAndUpdate, focusVisibleNodes]);
 
   // ---- Linking mode ----
   const cancelLinkingMode = useCallback(() => {
@@ -296,18 +482,18 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
   const handleLinkTargetSelected = useCallback((targetId) => {
     if (!linkingMode) return;
-    if (targetId === linkingMode.sourceId) return; // can't link to self
+    if (targetId === linkingMode.sourceId) return;
     setLinkTarget(targetId);
   }, [linkingMode]);
 
   const handleLinkTypeChosen = useCallback((linkType) => {
     if (!linkingMode || !linkTarget) return;
-    undoService.saveState(nodes, edges, customLinkTypes);
+    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const newEdges = treeService.linkNodes(edges, linkingMode.sourceId, linkTarget, linkType, undefined, customLinkTypes);
     saveAndUpdate(nodes, newEdges);
     setLinkingMode(null);
     setLinkTarget(null);
-  }, [linkingMode, linkTarget, edges, nodes, customLinkTypes, treeService, saveAndUpdate, undoService]);
+  }, [linkingMode, linkTarget, edges, nodes, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, undoService]);
 
   const handleSaveCustomLinkTypes = useCallback((nextCustomLinkTypes) => {
     const syncedEdges = treeService.syncCustomLinkEdges(edges, nextCustomLinkTypes);
@@ -316,24 +502,44 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [treeService, edges, nodes, saveAndUpdate]);
 
   const handleNodePointerDownWrapped = useCallback((e, nodeId) => {
+    if (groupDraft) {
+      e.stopPropagation();
+      e.preventDefault();
+      setGroupDraft((prev) => {
+        if (!prev) return prev;
+        const isSelected = prev.nodeIds.includes(nodeId);
+        return {
+          ...prev,
+          nodeIds: isSelected ? prev.nodeIds.filter(id => id !== nodeId) : [...prev.nodeIds, nodeId],
+        };
+      });
+      return;
+    }
+
     if (linkingMode) {
       e.stopPropagation();
       e.preventDefault();
       handleLinkTargetSelected(nodeId);
       return;
     }
+
     handleNodePointerDown(e, nodeId, nodes);
-  }, [linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes]);
+  }, [groupDraft, linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes]);
+
+  const handleSelectNode = useCallback((nodeId) => {
+    openActionsModal(nodeId);
+    selectGroupFromNode(nodeId);
+  }, [openActionsModal, selectGroupFromNode]);
 
   const handleMouseUpCallback = useCallback(() => {
     handleDragEnd();
-    handleMouseUp(() => saveAndUpdate(nodes, edges), openActionsModal);
-  }, [handleDragEnd, handleMouseUp, nodes, edges, saveAndUpdate, openActionsModal]);
+    handleMouseUp(() => saveAndUpdate(nodes, edges), handleSelectNode);
+  }, [handleDragEnd, handleMouseUp, nodes, edges, saveAndUpdate, handleSelectNode]);
 
   const handleTouchEndCallback = useCallback(() => {
     handleDragEnd();
-    handleTouchEnd(() => saveAndUpdate(nodes, edges), openActionsModal);
-  }, [handleDragEnd, handleTouchEnd, nodes, edges, saveAndUpdate, openActionsModal]);
+    handleTouchEnd(() => saveAndUpdate(nodes, edges), handleSelectNode);
+  }, [handleDragEnd, handleTouchEnd, nodes, edges, saveAndUpdate, handleSelectNode]);
 
   const sourceNodeForLink = useMemo(
     () => linkingMode ? nodes.find(n => n.id === linkingMode.sourceId) : null,
@@ -382,15 +588,14 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         username={username}
         nodeCount={nodes.length}
         zoom={transform.k}
-        onFitToScreen={() => fitToScreen(visibleNodes)}
+        onFitToScreen={() => fitToScreen(visibleNodes.length > 0 ? visibleNodes : nodes)}
         onOrganize={handleOrganize}
         onManageLinkTypes={() => setLinkTypesModalOpen(true)}
+        onOpenFamilyGroups={() => setFamilyGroupsModalOpen(true)}
+        hasFamilyGroups={normalizedFamilyGroups.length > 0}
         onExport={handleExport}
         onSnapshot={handleSnapshot}
         onLogout={onLogout}
-        hasFamilies={familyNuclei.length > 0}
-        hasCollapsed={collapsedFamilies.size > 0}
-        onToggleCollapseAll={handleToggleCollapseAll}
         onUndo={handleUndo}
         canUndo={canUndo}
       />
@@ -439,6 +644,27 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         />
       )}
 
+      <FamilyGroupsModal
+        isOpen={familyGroupsModalOpen}
+        groups={normalizedFamilyGroups}
+        isolatedGroupId={isolatedGroupId}
+        onClose={() => {
+          setFamilyGroupsModalOpen(false);
+          setGroupDraft(null);
+        }}
+        onShowOnly={handleShowOnlyGroup}
+        onToggleCollapse={handleToggleCollapseGroup}
+        onExpandAll={handleExpandAllGroups}
+        onStartCreate={handleStartCreateGroup}
+        onStartEdit={handleStartEditGroup}
+        onDelete={handleDeleteGroup}
+        draft={groupDraft}
+        onDraftLabelChange={(label) => setGroupDraft(prev => (prev ? { ...prev, label } : prev))}
+        onDraftEmojiRandom={() => setGroupDraft(prev => (prev ? { ...prev, emoji: randomGroupEmoji() } : prev))}
+        onSaveDraft={handleSaveGroupDraft}
+        onCancelDraft={() => setGroupDraft(null)}
+      />
+
       {/* Linking mode banner */}
       {linkingMode && !linkTarget && (
         <div className="absolute top-16 md:top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-200">
@@ -452,6 +678,14 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             >
               <X size={18} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {groupDraft && (
+        <div className="absolute top-16 md:top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="bg-orange-600 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3">
+            <span className="text-sm font-bold">Selecciona nodos del grupo. Toca nuevamente para deseleccionar.</span>
           </div>
         </div>
       )}
@@ -472,37 +706,6 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             );
           })}
 
-          {/* Collapse / expand toggle dots */}
-          {collapseToggles.map(toggle => (
-            <g key={`ct-${toggle.id}`}>
-              {toggle.isCollapsed && (
-                <line
-                  x1={toggle.x} y1={toggle.parentMaxY + 35}
-                  x2={toggle.x} y2={toggle.y - 14}
-                  stroke="#CBD5E1" strokeWidth="2" strokeDasharray="4,4"
-                />
-              )}
-              <g
-                className="pointer-events-auto cursor-pointer"
-                onClick={(e) => { e.stopPropagation(); toggleCollapse(toggle.id); }}
-              >
-                <circle
-                  cx={toggle.x} cy={toggle.y}
-                  r={toggle.isCollapsed ? 14 : 9}
-                  fill="white" stroke={toggle.isCollapsed ? '#F97316' : '#9CA3AF'}
-                  strokeWidth="1.5"
-                />
-                <text
-                  x={toggle.x} y={toggle.y + 4}
-                  textAnchor="middle" fill={toggle.isCollapsed ? '#F97316' : '#6B7280'}
-                  className={`${toggle.isCollapsed ? 'text-[11px]' : 'text-[10px]'} font-bold pointer-events-none select-none`}
-                >
-                  {toggle.isCollapsed ? `+${toggle.childCount}` : '−'}
-                </text>
-              </g>
-            </g>
-          ))}
-
           {visibleNodes.map(node => (
             <FamilyNode
               key={node.id}
@@ -510,6 +713,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
               isSelected={!linkingMode && actionsModal.nodeId === node.id}
               isDimmed={linkingMode && node.id !== linkingMode.sourceId && node.id !== linkTarget}
               isLinkTarget={linkingMode && node.id === linkTarget}
+              isGroupMemberHighlighted={highlightedGroupNodeIds.has(node.id) || (groupDraft?.nodeIds.includes(node.id) ?? false)}
               onPointerDown={(e, id) => handleNodePointerDownWrapped(e, id)}
             />
           ))}

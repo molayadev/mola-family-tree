@@ -16,10 +16,11 @@ export class AuthService {
       const nodes = (user.treeData?.nodes || []).map(ExportImportService.migrateNodeData);
       const edges = user.treeData?.edges || [];
       const customLinkTypes = ExportImportService.migrateCustomLinkTypes(user.treeData?.customLinkTypes || []);
+      const familyGroups = ExportImportService.migrateFamilyGroups(user.treeData?.familyGroups || []);
       return {
         success: true,
         user: { username },
-        treeData: { nodes, edges, customLinkTypes },
+        treeData: { nodes, edges, customLinkTypes, familyGroups },
       };
     }
     return { success: false, error: 'Credenciales inválidas' };
@@ -32,12 +33,12 @@ export class AuthService {
     }
 
     const nodes = initialNode ? [initialNode] : [];
-    this.storage.saveUserData(username, password, nodes, [], []);
+    this.storage.saveUserData(username, password, nodes, [], [], []);
 
     return {
       success: true,
       user: { username },
-      treeData: { nodes, edges: [], customLinkTypes: [] },
+      treeData: { nodes, edges: [], customLinkTypes: [], familyGroups: [] },
     };
   }
 }

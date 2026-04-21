@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-import { Target, Download, LogOut, Menu, X, Camera, LayoutGrid, Minimize2, Maximize2, Undo, Link as LinkIcon } from 'lucide-react';
+import { Target, Download, LogOut, Menu, X, Camera, LayoutGrid, Undo, Link as LinkIcon, Users } from 'lucide-react';
 
-export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onOrganize, onManageLinkTypes, onExport, onSnapshot, onLogout, hasFamilies, hasCollapsed, onToggleCollapseAll, onUndo, canUndo }) {
+export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onOrganize, onManageLinkTypes, onOpenFamilyGroups, hasFamilyGroups, onExport, onSnapshot, onLogout, onUndo, canUndo }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen(prev => !prev);
@@ -37,11 +37,9 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
           <button onClick={onOrganize} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Organizar por niveles">
             <LayoutGrid size={20} className="text-gray-600" />
           </button>
-          {hasFamilies && (
-            <button onClick={onToggleCollapseAll} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title={hasCollapsed ? 'Expandir familias' : 'Colapsar familias'}>
-              {hasCollapsed ? <Maximize2 size={20} className="text-gray-600" /> : <Minimize2 size={20} className="text-gray-600" />}
-            </button>
-          )}
+          <button onClick={onOpenFamilyGroups} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Grupos familiares">
+            <Users size={20} className={`${hasFamilyGroups ? 'text-orange-600' : 'text-gray-600'}`} />
+          </button>
           <button onClick={onSnapshot} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Descargar imagen">
             <Camera size={20} className="text-gray-600" />
           </button>
@@ -107,15 +105,13 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
                 <span className="text-sm text-gray-700">Organizar por niveles</span>
               </button>
 
-              {hasFamilies && (
-                <button
-                  onClick={() => handleAction(onToggleCollapseAll)}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left"
-                >
-                  {hasCollapsed ? <Maximize2 size={18} className="text-gray-600" /> : <Minimize2 size={18} className="text-gray-600" />}
-                  <span className="text-sm text-gray-700">{hasCollapsed ? 'Expandir familias' : 'Colapsar familias'}</span>
-                </button>
-              )}
+              <button
+                onClick={() => handleAction(onOpenFamilyGroups)}
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left"
+              >
+                <Users size={18} className={`${hasFamilyGroups ? 'text-orange-600' : 'text-gray-600'}`} />
+                <span className="text-sm text-gray-700">Grupos familiares</span>
+              </button>
 
               <button
                 onClick={() => handleAction(onSnapshot)}

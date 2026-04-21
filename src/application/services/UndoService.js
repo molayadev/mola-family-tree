@@ -1,28 +1,30 @@
 /**
  * UndoService manages the undo history for the family tree.
- * It maintains a stack of up to 5 previous states (nodes, edges, and customLinkTypes).
+ * It maintains a stack of up to 5 previous states (nodes, edges, customLinkTypes and familyGroups).
  * This service does NOT support redo functionality - only undo.
  */
 export class UndoService {
   constructor() {
     this.maxHistorySize = 5;
-    this.history = []; // Stack of previous states: [{ nodes, edges, customLinkTypes }, ...]
+    this.history = []; // Stack of previous states: [{ nodes, edges, customLinkTypes, familyGroups }, ...]
   }
 
   /**
-   * Save the current state (nodes, edges, and customLinkTypes) to the history stack.
+   * Save the current state (nodes, edges, customLinkTypes and familyGroups) to the history stack.
    * This should be called BEFORE performing any action that should be undoable.
    * 
    * @param {Array} nodes - Current nodes array
    * @param {Array} edges - Current edges array
    * @param {Array} customLinkTypes - Current custom link types array
+   * @param {Array} familyGroups - Current family groups array
    */
-  saveState(nodes, edges, customLinkTypes = []) {
+  saveState(nodes, edges, customLinkTypes = [], familyGroups = []) {
     // Create deep copies to avoid reference issues
     const state = {
       nodes: JSON.parse(JSON.stringify(nodes)),
       edges: JSON.parse(JSON.stringify(edges)),
       customLinkTypes: JSON.parse(JSON.stringify(customLinkTypes)),
+      familyGroups: JSON.parse(JSON.stringify(familyGroups)),
     };
 
     this.history.push(state);
@@ -37,7 +39,7 @@ export class UndoService {
    * Undo the last action by retrieving the previous state.
    * Returns null if there's no history to undo.
    * 
-   * @returns {Object|null} Previous state { nodes, edges, customLinkTypes } or null if no history
+   * @returns {Object|null} Previous state { nodes, edges, customLinkTypes, familyGroups } or null if no history
    */
   undo() {
     if (this.history.length === 0) {

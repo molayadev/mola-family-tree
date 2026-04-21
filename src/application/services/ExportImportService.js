@@ -12,7 +12,8 @@ export class ExportImportService {
 
       const migratedNodes = json.nodes.map(ExportImportService.migrateNodeData);
       const migratedCustomLinkTypes = ExportImportService.migrateCustomLinkTypes(json.customLinkTypes || []);
-      this.storage.importUserData(json.user, json.password, migratedNodes, json.edges, migratedCustomLinkTypes);
+      const migratedFamilyGroups = ExportImportService.migrateFamilyGroups(json.familyGroups || []);
+      this.storage.importUserData(json.user, json.password, migratedNodes, json.edges, migratedCustomLinkTypes, migratedFamilyGroups);
       return json.user;
     } catch (error) {
       if (error.message === 'El archivo no tiene el formato correcto.') {
@@ -22,7 +23,7 @@ export class ExportImportService {
     }
   }
 
-  exportTree(username, nodes, edges, customLinkTypes = []) {
+  exportTree(username, nodes, edges, customLinkTypes = [], familyGroups = []) {
     const userData = this.storage.getUserData(username);
     const userPass = userData?.password || '';
 
@@ -32,6 +33,7 @@ export class ExportImportService {
       nodes,
       edges,
       customLinkTypes,
+      familyGroups,
     };
 
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData, null, 2));
@@ -108,6 +110,23 @@ export class ExportImportService {
         };
       })
       .filter(item => item.name.length > 0);
+  }
+
+  static migrateFamilyGroups(familyGroups) {
+    if (!Array.isArray(familyGroups)) return [];
+    return familyGroups
+      .filter(Boolean)
+      .map((item, index) => {
+        const nodeIds = Array.isArray(item.nodeIds) ? item.nodeIds.filter(Boolean).map(String) : [];
+        return {
+          id: String(item.id || `family-group-${index}`),
+          label: String(item.label || '').trim(),
+          emoji: String(item.emoji || '👨‍👩‍👧'),
+          nodeIds: [...new Set(nodeIds)],
+          collapsed: Boolean(item.collapsed),
+        };
+      })
+      .filter(item => item.nodeIds.length > 0);
   }
 
   importTree(file) {
