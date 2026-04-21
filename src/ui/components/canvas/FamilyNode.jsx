@@ -55,7 +55,7 @@ function GenderIcon({ gender, className }) {
   return <UnknownIcon className={className} />;
 }
 
-export default function FamilyNode({ node, siblingStats, isSelected, isDimmed, isLinkTarget, onPointerDown }) {
+export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, onPointerDown }) {
   const deceased = isDeceased(node.data);
   const style = COLORS[node.data.gender] || COLORS.unknown;
 
@@ -104,35 +104,6 @@ export default function FamilyNode({ node, siblingStats, isSelected, isDimmed, i
           <text x="22" y="-18" textAnchor="middle" fill="white" className="text-[11px] font-bold pointer-events-none">
             {twinBadge.label}
           </text>
-        </g>
-      )}
-
-      {siblingStats && !isDimmed && (siblingStats.full + siblingStats.half + siblingStats.step > 0) && (
-        <g>
-          {siblingStats.full > 0 && (
-            <g>
-              <circle cx="-24" cy="-24" r="9" fill="#4F46E5" stroke="white" strokeWidth="2" />
-              <text x="-24" y="-20" textAnchor="middle" fill="white" className="text-[9px] font-bold pointer-events-none">
-                H{siblingStats.full}
-              </text>
-            </g>
-          )}
-          {siblingStats.half > 0 && (
-            <g>
-              <circle cx="-4" cy="-29" r="8.5" fill="#7C3AED" stroke="white" strokeWidth="2" />
-              <text x="-4" y="-25" textAnchor="middle" fill="white" className="text-[8px] font-bold pointer-events-none">
-                M{siblingStats.half}
-              </text>
-            </g>
-          )}
-          {siblingStats.step > 0 && (
-            <g>
-              <circle cx="14" cy="-26" r="8.5" fill="#0EA5E9" stroke="white" strokeWidth="2" />
-              <text x="14" y="-22" textAnchor="middle" fill="white" className="text-[8px] font-bold pointer-events-none">
-                S{siblingStats.step}
-              </text>
-            </g>
-          )}
         </g>
       )}
 

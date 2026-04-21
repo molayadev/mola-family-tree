@@ -3,6 +3,7 @@ import { LocalStorageAdapter } from '../infrastructure/adapters/LocalStorageAdap
 import { AuthService } from '../application/services/AuthService';
 import { TreeService } from '../application/services/TreeService';
 import { ExportImportService } from '../application/services/ExportImportService';
+import { UndoService } from '../application/services/UndoService';
 import { createNode } from '../domain/entities/Node';
 import LandingPage from './components/auth/LandingPage';
 import AuthForm from './components/auth/AuthForm';
@@ -15,6 +16,7 @@ export default function App() {
   const authService = useMemo(() => new AuthService(storageAdapter), []);
   const treeService = useMemo(() => new TreeService(storageAdapter), []);
   const exportService = useMemo(() => new ExportImportService(storageAdapter), []);
+  const undoService = useMemo(() => new UndoService(), []);
 
   const [view, setView] = useState('landing');
   const [currentUser, setCurrentUser] = useState(null);
@@ -125,6 +127,7 @@ export default function App() {
       customLinkTypes={customLinkTypes}
       treeService={treeService}
       exportService={exportService}
+      undoService={undoService}
       onSave={handleSave}
       onLogout={handleLogout}
     />

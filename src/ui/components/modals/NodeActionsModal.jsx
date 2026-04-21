@@ -451,7 +451,7 @@ export default function NodeActionsModal({
                 <CollapsibleFieldset label="Inicio y Fin" badge={ageBadge}>
                   {/* Birth date */}
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-gray-500 uppercase">Fecha de Inicio</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase">Fecha de Nacimiento</label>
                     <DateSelector
                       value={formData.birthDate || ''}
                       onChange={v => setFormData({ ...formData, birthDate: v })}
@@ -460,7 +460,7 @@ export default function NodeActionsModal({
 
                   {/* Birth time */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hora de Inicio</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hora de Nacimiento</label>
                     <TimeWheelSelector
                       value={formData.birthTime || ''}
                       onChange={v => setFormData({ ...formData, birthTime: v })}
@@ -566,7 +566,7 @@ export default function NodeActionsModal({
 
                   {/* Death date */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Fin</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Muerte</label>
                     <DateSelector
                       value={formData.deathDate || ''}
                       onChange={v => setFormData({ ...formData, deathDate: v })}
