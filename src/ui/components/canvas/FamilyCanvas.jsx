@@ -376,7 +376,10 @@ const buildRadialPositions = (nodes, edges, focusNodeId) => {
   return positions;
 };
 
-const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId, viewMode) => {
+const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId, viewMode, relativesBranchMode) => {
+  const effectiveViewMode = viewMode === 'relatives' && (relativesBranchMode === 'maternal' || relativesBranchMode === 'paternal')
+    ? relativesBranchMode
+    : viewMode;
   const nodeMap = new Map(nodes.map(node => [node.id, node]));
   const parentsByChild = new Map();
   const childrenByParent = new Map();
@@ -510,7 +513,7 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
     };
   }
 
-  if (viewMode === 'all') {
+  if (effectiveViewMode === 'all') {
     nodes.forEach((node) => addNode(node.id));
     return {
       resolvedFocusNodeId,
@@ -535,16 +538,16 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
   });
 
   addNode(resolvedFocusNodeId);
-  if (viewMode !== 'lineage' && viewMode !== 'radial') {
+  if (effectiveViewMode !== 'lineage' && effectiveViewMode !== 'radial') {
     addNodePartners(resolvedFocusNodeId);
   }
 
-  if (viewMode === 'descendants' || viewMode === 'relatives') {
+  if (effectiveViewMode === 'descendants' || effectiveViewMode === 'relatives') {
     addDescendants(resolvedFocusNodeId);
   }
 
   let activeParentId = null;
-  if (viewMode === 'radial') {
+  if (effectiveViewMode === 'radial') {
     activeParentId = chooseParentWithMotherPriority(
       focusParentsRaw,
       nodeMap,
@@ -554,7 +557,7 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
     allAncestors.forEach((ancestorId) => {
       addNode(ancestorId);
     });
-  } else if (viewMode === 'lineage') {
+  } else if (effectiveViewMode === 'lineage') {
     activeParentId = chooseParentWithMotherPriority(
       focusParentsRaw,
       nodeMap,
@@ -565,8 +568,8 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
     allAncestors.forEach((ancestorId) => {
       addNode(ancestorId);
     });
-  } else if (viewMode === 'ancestors' || viewMode === 'relatives') {
-    if (viewMode === 'relatives') {
+  } else if (effectiveViewMode === 'ancestors' || effectiveViewMode === 'relatives') {
+    if (effectiveViewMode === 'relatives') {
       activeParentId = chooseParentWithMotherPriority(
         focusParentsRaw,
         nodeMap,
@@ -583,7 +586,7 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
 
       addSiblingsWithFamilies(resolvedFocusNodeId);
     } else {
-      const ancestorPath = getAncestorPath(resolvedFocusNodeId, viewMode);
+      const ancestorPath = getAncestorPath(resolvedFocusNodeId, effectiveViewMode);
       activeParentId = ancestorPath[0] || null;
       ancestorPath.forEach((ancestorId) => {
         addNode(ancestorId);
@@ -591,12 +594,12 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
         addSiblingsWithFamilies(ancestorId);
       });
     }
-  } else if (viewMode === 'maternal' || viewMode === 'paternal') {
-    const rootParent = chooseParentByMode(getUniqueParents(resolvedFocusNodeId), resolvedFocusNodeId, viewMode);
+  } else if (effectiveViewMode === 'maternal' || effectiveViewMode === 'paternal') {
+    const rootParent = chooseParentByMode(getUniqueParents(resolvedFocusNodeId), resolvedFocusNodeId, effectiveViewMode);
     activeParentId = rootParent || null;
 
     if (rootParent) {
-      const branchAncestors = [rootParent, ...getAncestorPath(rootParent, viewMode)];
+      const branchAncestors = [rootParent, ...getAncestorPath(rootParent, effectiveViewMode)];
       branchAncestors.forEach((ancestorId) => {
         addNode(ancestorId);
         addNodePartners(ancestorId);
@@ -630,6 +633,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [focusNodeId, setFocusNodeId] = useState(() => nodes[0]?.id || null);
   const [selectedNodeId, setSelectedNodeId] = useState(() => nodes[0]?.id || null);
   const [lineageViewMode, setLineageViewMode] = useState('relatives');
+  const [relativesBranchMode, setRelativesBranchMode] = useState(null);
   const [parentChoiceByChildId, setParentChoiceByChildId] = useState({});
   const [linkTypesModalOpen, setLinkTypesModalOpen] = useState(false);
   const [familyGroupsModalOpen, setFamilyGroupsModalOpen] = useState(false);
@@ -647,8 +651,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const normalizedFamilyGroups = useMemo(() => normalizeFamilyGroups(familyGroups, nodes), [familyGroups, nodes]);
 
   const lineageVisibility = useMemo(
-    () => buildLineageVisibility(nodes, edges, focusNodeId, parentChoiceByChildId, lineageViewMode),
-    [nodes, edges, focusNodeId, parentChoiceByChildId, lineageViewMode],
+    () => buildLineageVisibility(nodes, edges, focusNodeId, parentChoiceByChildId, lineageViewMode, relativesBranchMode),
+    [nodes, edges, focusNodeId, parentChoiceByChildId, lineageViewMode, relativesBranchMode],
   );
 
   const hiddenNodeIds = useMemo(
@@ -1525,8 +1529,13 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         setFocusNodeId(firstNodeId);
         setSelectedNodeId(firstNodeId);
       }
+      setRelativesBranchMode(null);
       setLineageViewMode(nextMode);
       return;
+    }
+
+    if (nextMode !== 'relatives') {
+      setRelativesBranchMode(null);
     }
 
     const hasNode = (nodeId) => Boolean(nodeId) && nodes.some(node => node.id === nodeId);
@@ -1608,6 +1617,13 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     () => buildNodeParentControls(nodes, edges, controlsNode?.id || null, parentChoiceByChildId),
     [nodes, edges, controlsNode?.id, parentChoiceByChildId],
   );
+  const showTreeControls = Boolean(lineageViewMode === 'relatives' && controlsNode);
+  const isControlsNodeActive = Boolean(
+    controlsNode
+    && controlsNode.id === lineageVisibility.resolvedFocusNodeId,
+  );
+  const showTreeParentFilters = Boolean(isControlsNodeActive && nodeParentControls.options.length > 0);
+  const showTreeEyeButton = Boolean(showTreeControls && !isControlsNodeActive);
 
   const actionsModalHasParents = useMemo(() => {
     if (!actionsModal.nodeId) return false;
@@ -1917,7 +1933,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             </g>
           ))}
 
-          {controlsRenderNode && lineageViewMode === 'relatives' && (
+          {controlsRenderNode && showTreeControls && (
             <g
               className="pointer-events-auto"
               transform={`translate(${controlsRenderNode.x}, ${controlsRenderNode.y - 56})`}
@@ -1929,22 +1945,31 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                 height={24}
               >
                 <div className="w-full h-full flex items-center justify-center gap-1">
-                  {nodeParentControls.options.slice(0, 2).map((option) => {
+                  {showTreeParentFilters && nodeParentControls.options.slice(0, 2).map((option) => {
                     const isActive = nodeParentControls.activeParentId === option.id;
                     const ParentIcon = option.gender === 'female'
                       ? Venus
                       : (option.gender === 'male' ? Mars : GitBranch);
+                    const branchMode = option.gender === 'female'
+                      ? 'maternal'
+                      : (option.gender === 'male' ? 'paternal' : 'ancestors');
                     return (
                       <button
                         key={option.id}
                         type="button"
                         onMouseDown={(e) => {
                           e.stopPropagation();
+                          setSelectedNodeId(controlsNode.id);
+                          setFocusNodeId(controlsNode.id);
                           setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
+                          setRelativesBranchMode(branchMode);
                         }}
                         onTouchStart={(e) => {
                           e.stopPropagation();
+                          setSelectedNodeId(controlsNode.id);
+                          setFocusNodeId(controlsNode.id);
                           setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
+                          setRelativesBranchMode(branchMode);
                         }}
                         className={`w-5 h-5 rounded-full text-white flex items-center justify-center ${
                           isActive ? 'bg-orange-500' : 'bg-slate-400'
@@ -1956,21 +1981,27 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                     );
                   })}
 
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      setFocusNodeId(controlsNode.id);
-                    }}
-                    onTouchStart={(e) => {
-                      e.stopPropagation();
-                      setFocusNodeId(controlsNode.id);
-                    }}
-                    className="w-5 h-5 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center"
-                    title="Ver perspectiva"
-                  >
-                    <Eye size={12} />
-                  </button>
+                  {showTreeEyeButton && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setSelectedNodeId(controlsNode.id);
+                        setFocusNodeId(controlsNode.id);
+                        setRelativesBranchMode(null);
+                      }}
+                      onTouchStart={(e) => {
+                        e.stopPropagation();
+                        setSelectedNodeId(controlsNode.id);
+                        setFocusNodeId(controlsNode.id);
+                        setRelativesBranchMode(null);
+                      }}
+                      className="w-5 h-5 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center"
+                      title="Activar perspectiva"
+                    >
+                      <Eye size={12} />
+                    </button>
+                  )}
 
                   <button
                     type="button"
