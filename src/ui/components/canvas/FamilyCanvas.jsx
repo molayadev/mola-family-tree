@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Move, Link as LinkIcon, X, Eye, Pencil, GitBranch, ArrowUp, ArrowDown, Users, Venus, Mars } from 'lucide-react';
-import { isPartnerEdgeType, isBrokenLabel } from '../../../domain/config/constants';
+import { Move, Link as LinkIcon, X, Eye, Pencil, GitBranch, ArrowUp, ArrowDown, Users, Venus, Mars, CircleDot } from 'lucide-react';
+import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../../domain/config/constants';
 import { generateId } from '../../../domain/entities/Node';
 import { useCanvas } from '../../../application/hooks/useCanvas';
 import { downloadTreeSnapshot } from '../../../application/services/SnapshotService';
@@ -18,12 +18,12 @@ import Input from '../common/Input';
 const GROUP_EMOJIS = ['👨‍👩‍👧', '👨‍👩‍👧‍👦', '👩‍👩‍👦', '👨‍👨‍👧', '🏡', '💞', '🌳', '💫', '🫶', '✨'];
 const GROUP_COLORS = ['#F97316', '#7C3AED', '#0891B2', '#16A34A', '#DC2626', '#EA580C', '#4F46E5', '#D946EF'];
 const LINEAGE_VIEW_MODES = [
-  { value: 'lineage', label: 'Linaje', shortLabel: 'Linaje', icon: GitBranch },
+  { value: 'relatives', label: 'Mi árbol', shortLabel: 'Árbol', icon: Users },
   { value: 'ancestors', label: 'Ancestros', shortLabel: 'Asc.', icon: ArrowUp },
   { value: 'descendants', label: 'Descendencia', shortLabel: 'Desc.', icon: ArrowDown },
-  { value: 'relatives', label: 'Mi árbol', shortLabel: 'Árbol', icon: Users },
-  { value: 'maternal', label: 'Rama materna', shortLabel: 'Madre', icon: Venus },
-  { value: 'paternal', label: 'Rama paterna', shortLabel: 'Padre', icon: Mars },
+  { value: 'lineage', label: 'Linaje', shortLabel: 'Linaje', icon: GitBranch },
+  { value: 'radial', label: 'Vista radial', shortLabel: 'Radial', icon: CircleDot },
+  { value: 'all', label: 'Todo', shortLabel: 'Todo', icon: Users },
 ];
 const FIT_TO_SCREEN_DELAY = 100;
 
@@ -230,8 +230,8 @@ const buildLineageColumnPositions = (nodes, edges, focusNodeId) => {
   });
 
   const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
-  const columnGap = isMobileViewport ? 190 : 250;
-  const rowGap = isMobileViewport ? 94 : 112;
+  const columnGap = isMobileViewport ? 200 : 260;
+  const rowGap = isMobileViewport ? 130 : 160;
   const positions = new Map();
 
   [...nodesByGeneration.entries()].forEach(([generation, entries]) => {
@@ -245,6 +245,134 @@ const buildLineageColumnPositions = (nodes, edges, focusNodeId) => {
     });
   });
 
+  return positions;
+};
+
+// Fan chart (radial view): angle convention → 0=left, 90=top(up), 180=right
+// Coord formula: x = cx - r*cos(θ), y = cy - r*sin(θ)   (Y flipped because SVG Y increases down)
+const fanPolarToXY = (cx, cy, r, angleDeg) => {
+  const θ = (angleDeg * Math.PI) / 180;
+  return { x: cx - r * Math.cos(θ), y: cy - r * Math.sin(θ) };
+};
+
+const fanArcPath = (cx, cy, innerR, outerR, startDeg, endDeg) => {
+  const GAP = 0.6; // visual gap between sectors (degrees)
+  const s = startDeg + GAP;
+  const e = endDeg - GAP;
+  if (e <= s) return '';
+  const largeArc = (e - s) > 180 ? 1 : 0;
+  const p1 = fanPolarToXY(cx, cy, outerR, s);
+  const p2 = fanPolarToXY(cx, cy, outerR, e);
+  const p3 = fanPolarToXY(cx, cy, innerR, e);
+  const p4 = fanPolarToXY(cx, cy, innerR, s);
+  return [
+    `M ${p1.x} ${p1.y}`,
+    `A ${outerR} ${outerR} 0 ${largeArc} 0 ${p2.x} ${p2.y}`,
+    `L ${p3.x} ${p3.y}`,
+    `A ${innerR} ${innerR} 0 ${largeArc} 1 ${p4.x} ${p4.y}`,
+    'Z',
+  ].join(' ');
+};
+
+const FAN_RING_WIDTHS = [0, 120, 100, 85, 75, 65]; // index = generation
+const FAN_FOCUS_R = 55;
+const FAN_MAX_GEN = 5;
+
+const buildFanInnerRadii = () => {
+  const radii = [0, FAN_FOCUS_R];
+  for (let g = 2; g <= FAN_MAX_GEN; g++) {
+    radii[g] = radii[g - 1] + (FAN_RING_WIDTHS[g - 1] || 65);
+  }
+  return radii;
+};
+const FAN_INNER_RADII = buildFanInnerRadii();
+
+const getFanSectorColor = (gen, slot, numSlots, hasNode) => {
+  if (!hasNode) return '#f8fafc';
+  const isLeft = slot < numSlots / 2;
+  const lightness = Math.min(91, 76 + gen * 3);
+  return isLeft ? `hsl(208, 65%, ${lightness}%)` : `hsl(338, 60%, ${lightness}%)`;
+};
+
+const buildFanSlots = (nodes, edges, focusNodeId) => {
+  if (!focusNodeId) return null;
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const focusNode = nodeMap.get(focusNodeId);
+  if (!focusNode) return null;
+
+  const parentsByChild = new Map();
+  edges.forEach((edge) => {
+    if (edge.type !== 'parent') return;
+    if (!parentsByChild.has(edge.to)) parentsByChild.set(edge.to, []);
+    parentsByChild.get(edge.to).push(edge.from);
+  });
+
+  // (gen:slot) → nodeId
+  const genSlotToNode = new Map([['0:0', focusNodeId]]);
+
+  for (let gen = 0; gen < FAN_MAX_GEN; gen++) {
+    const genSlots = 1 << gen;
+    for (let s = 0; s < genSlots; s++) {
+      const nodeId = genSlotToNode.get(`${gen}:${s}`);
+      if (!nodeId) continue;
+      const parentIds = [...new Set(parentsByChild.get(nodeId) || [])]
+        .filter(id => nodeMap.has(id))
+        .sort((a, b) => {
+          const w = g => (g === 'male' ? 0 : g === 'female' ? 1 : 2);
+          return w(nodeMap.get(a)?.data?.gender) - w(nodeMap.get(b)?.data?.gender);
+        });
+      parentIds.forEach((parentId, i) => {
+        const key = `${gen + 1}:${s * 2 + i}`;
+        if (!genSlotToNode.has(key)) genSlotToNode.set(key, parentId);
+      });
+    }
+  }
+
+  // Determine max generation that has actual nodes (min 1, max FAN_MAX_GEN)
+  let maxGen = 1;
+  genSlotToNode.forEach((_, key) => {
+    const g = parseInt(key.split(':')[0], 10);
+    if (g > maxGen) maxGen = g;
+  });
+  maxGen = Math.min(maxGen + 1, FAN_MAX_GEN);
+
+  const cx = focusNode.x;
+  const cy = focusNode.y;
+
+  const rings = [];
+  for (let gen = 1; gen <= maxGen; gen++) {
+    const innerR = FAN_INNER_RADII[gen];
+    const outerR = innerR + (FAN_RING_WIDTHS[gen] || 65);
+    const numSlots = 1 << gen;
+    const slots = [];
+    for (let s = 0; s < numSlots; s++) {
+      const startAngle = (s * 180) / numSlots;
+      const endAngle = ((s + 1) * 180) / numSlots;
+      const nodeId = genSlotToNode.get(`${gen}:${s}`) || null;
+      const childNodeId = genSlotToNode.get(`${gen - 1}:${Math.floor(s / 2)}`) || null;
+      slots.push({ gen, slotIndex: s, numSlots, startAngle, endAngle, innerR, outerR, nodeId, childNodeId });
+    }
+    rings.push({ generation: gen, innerR, outerR, slots });
+  }
+
+  return { cx, cy, focusR: FAN_FOCUS_R, focusNodeId, rings };
+};
+
+const buildRadialPositions = (nodes, edges, focusNodeId) => {
+  const fanData = buildFanSlots(nodes, edges, focusNodeId);
+  if (!fanData) return new Map();
+  const positions = new Map();
+  const focusNode = nodes.find(n => n.id === focusNodeId);
+  if (focusNode) positions.set(focusNodeId, { x: fanData.cx, y: fanData.cy });
+  fanData.rings.forEach(ring => {
+    ring.slots.forEach(slot => {
+      if (!slot.nodeId) return;
+      const midAngle = (slot.startAngle + slot.endAngle) / 2;
+      const midR = (slot.innerR + slot.outerR) / 2;
+      const { x, y } = fanPolarToXY(fanData.cx, fanData.cy, midR, midAngle);
+      positions.set(slot.nodeId, { x, y });
+    });
+  });
   return positions;
 };
 
@@ -382,6 +510,16 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
     };
   }
 
+  if (viewMode === 'all') {
+    nodes.forEach((node) => addNode(node.id));
+    return {
+      resolvedFocusNodeId,
+      visibleNodeIds,
+      focusParentOptions: [],
+      activeParentId: null,
+    };
+  }
+
   const focusParentsRaw = [...new Set(parentsByChild.get(resolvedFocusNodeId) || [])]
     .filter(id => nodeMap.has(id));
   const focusParentOptions = focusParentsRaw.map((parentId, index) => {
@@ -397,7 +535,7 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
   });
 
   addNode(resolvedFocusNodeId);
-  if (viewMode !== 'lineage') {
+  if (viewMode !== 'lineage' && viewMode !== 'radial') {
     addNodePartners(resolvedFocusNodeId);
   }
 
@@ -406,7 +544,17 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
   }
 
   let activeParentId = null;
-  if (viewMode === 'lineage') {
+  if (viewMode === 'radial') {
+    activeParentId = chooseParentWithMotherPriority(
+      focusParentsRaw,
+      nodeMap,
+      parentChoiceByChildId?.[resolvedFocusNodeId] || null,
+    );
+    const allAncestors = collectAllAncestors(resolvedFocusNodeId);
+    allAncestors.forEach((ancestorId) => {
+      addNode(ancestorId);
+    });
+  } else if (viewMode === 'lineage') {
     activeParentId = chooseParentWithMotherPriority(
       focusParentsRaw,
       nodeMap,
@@ -480,8 +628,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
   const [focusNodeId, setFocusNodeId] = useState(() => nodes[0]?.id || null);
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [lineageViewMode, setLineageViewMode] = useState('lineage');
+  const [selectedNodeId, setSelectedNodeId] = useState(() => nodes[0]?.id || null);
+  const [lineageViewMode, setLineageViewMode] = useState('relatives');
   const [parentChoiceByChildId, setParentChoiceByChildId] = useState({});
   const [linkTypesModalOpen, setLinkTypesModalOpen] = useState(false);
   const [familyGroupsModalOpen, setFamilyGroupsModalOpen] = useState(false);
@@ -529,15 +677,15 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     [nodes, effectiveHiddenNodeIds],
   );
 
-  const lineageColumnPositions = useMemo(
-    () => (lineageViewMode === 'lineage'
-      ? buildLineageColumnPositions(nodes, edges, lineageVisibility.resolvedFocusNodeId)
-      : new Map()),
-    [lineageViewMode, nodes, edges, lineageVisibility.resolvedFocusNodeId],
-  );
+  const lineageColumnPositions = useMemo(() => {
+    const focusId = lineageVisibility.resolvedFocusNodeId;
+    if (lineageViewMode === 'lineage') return buildLineageColumnPositions(nodes, edges, focusId);
+    if (lineageViewMode === 'radial') return buildRadialPositions(nodes, edges, focusId);
+    return new Map();
+  }, [lineageViewMode, nodes, edges, lineageVisibility.resolvedFocusNodeId]);
 
   const lineageAncestorNodeIds = useMemo(() => {
-    if (lineageViewMode !== 'lineage') return new Set();
+    if (lineageViewMode !== 'lineage' && lineageViewMode !== 'radial') return new Set();
     const focusId = lineageVisibility.resolvedFocusNodeId;
     if (!focusId) return new Set();
 
@@ -562,6 +710,28 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
     return ancestorIds;
   }, [lineageViewMode, edges, lineageVisibility.resolvedFocusNodeId]);
+
+  const fanData = useMemo(() => {
+    if (lineageViewMode !== 'radial') return null;
+    return buildFanSlots(nodes, edges, lineageVisibility.resolvedFocusNodeId);
+  }, [lineageViewMode, nodes, edges, lineageVisibility.resolvedFocusNodeId]);
+
+  const radialFitBoundsNodes = useMemo(() => {
+    if (lineageViewMode !== 'radial' || !fanData || fanData.rings.length === 0) return null;
+    const lastRing = fanData.rings[fanData.rings.length - 1];
+    const maxR = lastRing.outerR;
+    const cx = fanData.cx;
+    const cy = fanData.cy;
+    const focusR = fanData.focusR || 0;
+
+    // Virtual bounds so fit/center includes full fan geometry, not only node centers.
+    return [
+      { id: 'fan-left', x: cx - maxR, y: cy },
+      { id: 'fan-right', x: cx + maxR, y: cy },
+      { id: 'fan-top', x: cx, y: cy - maxR },
+      { id: 'fan-bottom', x: cx, y: cy + focusR },
+    ];
+  }, [lineageViewMode, fanData]);
 
   const renderedNodeById = useMemo(() => {
     const map = new Map();
@@ -621,7 +791,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     const dedupe = new Set();
     const output = [];
 
-    edges.forEach((edge) => {
+    const resolveRenderedEndpoints = (edge) => {
       const fromHidden = effectiveHiddenNodeIds.has(edge.from);
       const toHidden = effectiveHiddenNodeIds.has(edge.to);
       const fromCollapsedGroup = collapsedGroupByNodeId.get(edge.from);
@@ -642,24 +812,110 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
         const canRenderFromCollapsed = !fromHidden || Boolean(fromCollapsedGroup);
         const canRenderToCollapsed = !toHidden || Boolean(toCollapsedGroup);
-        if (!canRenderFromCollapsed || !canRenderToCollapsed) return;
+        if (!canRenderFromCollapsed || !canRenderToCollapsed) return null;
 
-        if (fromHidden && toHidden && fromCollapsedGroup === toCollapsedGroup) return;
+        if (fromHidden && toHidden && fromCollapsedGroup === toCollapsedGroup) return null;
       }
 
-      if (!fromNode || !toNode) return;
+      if (!fromNode || !toNode) return null;
 
+      return { fromNode, toNode };
+    };
+
+    const pushRenderedEdge = (edge, fromNode, toNode, suffix = '') => {
       const key = [
         edge.type,
-        edge.label || '',
+        edge.id || edge.sourceNodeId || suffix,
+        suffix,
         `${Math.round(fromNode.x)}:${Math.round(fromNode.y)}`,
         `${Math.round(toNode.x)}:${Math.round(toNode.y)}`,
       ].join('|');
 
       if (dedupe.has(key)) return;
       dedupe.add(key);
-
       output.push({ edge, fromNode, toNode, renderKey: key });
+    };
+
+    const parentEdgesByChildId = new Map();
+    const partnerEdgeByPairKey = new Map();
+
+    edges.forEach((edge) => {
+      if (isPartnerEdgeType(edge.type)) {
+        const pairKey = [edge.from, edge.to].sort().join('|');
+        const existing = partnerEdgeByPairKey.get(pairKey);
+        if (!existing) {
+          partnerEdgeByPairKey.set(pairKey, edge);
+        } else {
+          const existingBroken = existing.type === 'ex_spouse' || isBrokenLabel(resolveEdgeLabel(existing));
+          const nextBroken = edge.type === 'ex_spouse' || isBrokenLabel(resolveEdgeLabel(edge));
+          if (existingBroken && !nextBroken) partnerEdgeByPairKey.set(pairKey, edge);
+        }
+      }
+
+      if (edge.type === 'parent') {
+        if (!parentEdgesByChildId.has(edge.to)) parentEdgesByChildId.set(edge.to, []);
+        parentEdgesByChildId.get(edge.to).push(edge);
+        return;
+      }
+
+      const rendered = resolveRenderedEndpoints(edge);
+      if (!rendered) return;
+      pushRenderedEdge(edge, rendered.fromNode, rendered.toNode);
+    });
+
+    parentEdgesByChildId.forEach((childParentEdges, childId) => {
+      const renderedParents = childParentEdges
+        .map((edge) => {
+          const rendered = resolveRenderedEndpoints(edge);
+          if (!rendered) return null;
+          return { edge, fromNode: rendered.fromNode, toNode: rendered.toNode };
+        })
+        .filter(Boolean);
+
+      if (renderedParents.length === 0) return;
+
+      const childNode = renderedParents[0].toNode;
+      const uniqueByParent = new Map();
+      renderedParents.forEach((entry) => {
+        if (!uniqueByParent.has(entry.edge.from)) uniqueByParent.set(entry.edge.from, entry);
+      });
+      const uniqueParents = [...uniqueByParent.values()];
+
+      if (uniqueParents.length === 2) {
+        const parentIds = uniqueParents.map(item => item.edge.from).sort();
+        const pairKey = parentIds.join('|');
+        const partnerEdge = partnerEdgeByPairKey.get(pairKey);
+
+        if (partnerEdge) {
+          const [left, right] = [...uniqueParents].sort((a, b) => a.fromNode.x - b.fromNode.x);
+          const relationLabel = resolveEdgeLabel(partnerEdge);
+          const isBroken = partnerEdge.type === 'ex_spouse' || isBrokenLabel(relationLabel);
+          const junctionNode = {
+            id: left.edge.from,
+            x: (left.fromNode.x + right.fromNode.x) / 2,
+            y: (left.fromNode.y + right.fromNode.y) / 2,
+          };
+          const connectorEdge = {
+            id: `parent-bundle-${childId}-${pairKey}`,
+            type: 'parent_bundle',
+            sourceNodeId: left.edge.from,
+            styleColor: '#F9A8D4',
+            styleDash: isBroken ? '6,4' : '0',
+          };
+          pushRenderedEdge(connectorEdge, junctionNode, childNode, `bundle-${childId}`);
+          return;
+        }
+      }
+
+      uniqueParents.forEach(({ edge, fromNode }) => {
+        const singleParentEdge = {
+          ...edge,
+          sourceNodeId: edge.from,
+          styleColor: '#111827',
+          styleDash: '0',
+        };
+        pushRenderedEdge(singleParentEdge, fromNode, childNode, `single-${edge.id || `${edge.from}-${edge.to}`}`);
+      });
     });
 
     return output;
@@ -704,6 +960,14 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     zoomOut,
   } = useCanvas();
 
+  const handleCenterCurrentView = useCallback(() => {
+    if (lineageViewMode === 'radial' && radialFitBoundsNodes) {
+      fitToScreen(radialFitBoundsNodes);
+      return;
+    }
+    fitToScreen(displayedVisibleNodes.length > 0 ? displayedVisibleNodes : nodes);
+  }, [lineageViewMode, radialFitBoundsNodes, fitToScreen, displayedVisibleNodes, nodes]);
+
   // Initialize view on mount
   useEffect(() => {
     if (nodes.length > 0) {
@@ -716,9 +980,11 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   useEffect(() => {
     if (!lineageVisibility.resolvedFocusNodeId) return;
     if (groupDraft) return;
-    const filteredVisibleNodes = displayedVisibleNodes;
-    if (filteredVisibleNodes.length === 0) return;
-    const timer = setTimeout(() => fitToScreen(filteredVisibleNodes), FIT_TO_SCREEN_DELAY);
+    const nodesForFit = lineageViewMode === 'radial'
+      ? radialFitBoundsNodes
+      : displayedVisibleNodes;
+    if (!nodesForFit || nodesForFit.length === 0) return;
+    const timer = setTimeout(() => fitToScreen(nodesForFit), FIT_TO_SCREEN_DELAY);
     return () => clearTimeout(timer);
   }, [
     lineageVisibility.resolvedFocusNodeId,
@@ -727,8 +993,16 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     isolatedGroupId,
     groupDraft,
     displayedVisibleNodes,
+    radialFitBoundsNodes,
     fitToScreen,
   ]);
+
+  useEffect(() => {
+    if (nodes.length === 0) return;
+    const hasNode = (nodeId) => Boolean(nodeId) && nodes.some(node => node.id === nodeId);
+    if (!hasNode(selectedNodeId)) setSelectedNodeId(nodes[0].id);
+    if (!hasNode(focusNodeId)) setFocusNodeId(nodes[0].id);
+  }, [nodes, selectedNodeId, focusNodeId]);
 
   // Track if we need to save state before node movement
   const nodeMovementStateRef = useRef({ savedForCurrentDrag: false });
@@ -785,11 +1059,12 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [normalizedFamilyGroups]);
 
   const handleLineClick = useCallback((edgeId, sourceNodeId) => {
+    if (lineageViewMode !== 'relatives') return;
     setSelectedNodeId(sourceNodeId);
     setFocusNodeId(sourceNodeId);
     openActionsModal(sourceNodeId, 'links', edgeId);
     selectGroupFromNode(sourceNodeId);
-  }, [openActionsModal, selectGroupFromNode]);
+  }, [lineageViewMode, openActionsModal, selectGroupFromNode]);
 
   const focusVisibleNodes = useCallback((nextGroups, nextIsolatedGroupId = isolatedGroupId) => {
     const groupHidden = computeHiddenNodeIds(nodes, nextGroups, nextIsolatedGroupId);
@@ -951,10 +1226,57 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
+    } else if (action === 'group_children') {
+      const validNodeIds = new Set(nodes.map(node => node.id));
+      const childIds = [...new Set(
+        edges
+          .filter(edge => edge.type === 'parent' && edge.from === nodeId)
+          .map(edge => edge.to)
+      )].filter(id => validNodeIds.has(id));
+
+      if (childIds.length === 0) return;
+
+      const existingGroup = normalizedFamilyGroups.find((group) => (
+        group.nodeIds.length === childIds.length
+        && childIds.every(childId => group.nodeIds.includes(childId))
+      ));
+
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
+
+      let savedGroupId;
+      let nextGroups;
+
+      if (existingGroup) {
+        savedGroupId = existingGroup.id;
+        nextGroups = normalizedFamilyGroups.map((group) => (
+          group.id === existingGroup.id
+            ? { ...group, collapsed: true }
+            : group
+        ));
+      } else {
+        savedGroupId = `family-group-${generateId()}`;
+        const parentName = `${sourceNode?.data?.firstName || 'Familiar'} ${sourceNode?.data?.lastName || ''}`.trim();
+        nextGroups = [
+          ...normalizedFamilyGroups,
+          {
+            id: savedGroupId,
+            label: `Hijos de ${parentName}`,
+            emoji: '👶',
+            color: '#0EA5E9',
+            nodeIds: childIds,
+            collapsed: true,
+          },
+        ];
+      }
+
+      saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
+      setHighlightedGroupId(savedGroupId);
+      closeActionsModal();
+      focusVisibleNodes(nextGroups);
     } else if (action === 'link') {
       enterLinkingMode(nodeId);
     }
-  }, [actionsModal.nodeId, nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, closeActionsModal, enterLinkingMode, undoService]);
+  }, [actionsModal.nodeId, nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, closeActionsModal, enterLinkingMode, undoService, focusVisibleNodes]);
 
   const handleUpdateNode = useCallback((nodeId, newData) => {
     const updatedNodes = treeService.updateNode(nodes, nodeId, newData);
@@ -981,15 +1303,6 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const handleSnapshot = useCallback(() => {
     downloadTreeSnapshot(username, nodes, edges);
   }, [username, nodes, edges]);
-
-  const handleOrganize = useCallback(() => {
-    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
-    const expandedGroups = normalizedFamilyGroups.map(group => ({ ...group, collapsed: false }));
-    setIsolatedGroupId(null);
-    const organizedNodes = treeService.organizeByLevels(nodes, edges);
-    saveAndUpdate(organizedNodes, edges, customLinkTypes, expandedGroups);
-    setTimeout(() => fitToScreen(organizedNodes), FIT_TO_SCREEN_DELAY);
-  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, undoService]);
 
   // ---- Undo functionality ----
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1206,6 +1519,16 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [groupDraft, linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes, stateRef]);
 
   const handleViewModeChange = useCallback((nextMode) => {
+    if (nextMode === 'all') {
+      const firstNodeId = nodes[0]?.id || null;
+      if (firstNodeId) {
+        setFocusNodeId(firstNodeId);
+        setSelectedNodeId(firstNodeId);
+      }
+      setLineageViewMode(nextMode);
+      return;
+    }
+
     const hasNode = (nodeId) => Boolean(nodeId) && nodes.some(node => node.id === nodeId);
     const targetNodeId = hasNode(selectedNodeId)
       ? selectedNodeId
@@ -1214,7 +1537,9 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     if (targetNodeId) {
       setFocusNodeId(targetNodeId);
 
-      if (nextMode === 'maternal' || nextMode === 'paternal') {
+      if (nextMode === 'radial') {
+        // radial shares same logic as lineage — nothing extra needed
+      } else if (nextMode === 'maternal' || nextMode === 'paternal') {
         const nodeMap = new Map(nodes.map(node => [node.id, node]));
         const parentIds = [...new Set(
           edges
@@ -1243,9 +1568,10 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [selectedNodeId, focusNodeId, nodes, edges, parentChoiceByChildId]);
 
   const handleSelectNode = useCallback((nodeId) => {
+    if (lineageViewMode !== 'relatives') return;
     setSelectedNodeId(nodeId);
     selectGroupFromNode(nodeId);
-  }, [selectGroupFromNode]);
+  }, [lineageViewMode, selectGroupFromNode]);
 
   const handleMouseUpCallback = useCallback(() => {
     handleDragEnd();
@@ -1293,11 +1619,21 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     return treeService.hasSpouse(edges, actionsModal.nodeId);
   }, [actionsModal.nodeId, edges, treeService]);
 
+  const actionsModalHasChildren = useMemo(() => {
+    if (!actionsModal.nodeId) return false;
+    return edges.some(edge => edge.type === 'parent' && edge.from === actionsModal.nodeId);
+  }, [actionsModal.nodeId, edges]);
+
   const actionsModalIsLineageAncestor = useMemo(() => (
-    lineageViewMode === 'lineage'
+    (lineageViewMode === 'lineage' || lineageViewMode === 'radial')
     && Boolean(actionsModal.nodeId)
-    && lineageAncestorNodeIds.has(actionsModal.nodeId)
-  ), [lineageViewMode, actionsModal.nodeId, lineageAncestorNodeIds]);
+    && (
+      lineageAncestorNodeIds.has(actionsModal.nodeId)
+      || (lineageViewMode === 'radial' && actionsModal.nodeId === lineageVisibility.resolvedFocusNodeId)
+    )
+  ), [lineageViewMode, actionsModal.nodeId, lineageAncestorNodeIds, lineageVisibility.resolvedFocusNodeId]);
+
+  const allowGroupChildrenAction = lineageViewMode !== 'lineage' && lineageViewMode !== 'radial';
 
   const selectedCollapsedGroup = useMemo(
     () => normalizedFamilyGroups.find(group => group.id === collapsedGroupMenu?.groupId) || null,
@@ -1338,8 +1674,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         username={username}
         nodeCount={nodes.length}
         zoom={transform.k}
-        onFitToScreen={() => fitToScreen(displayedVisibleNodes.length > 0 ? displayedVisibleNodes : nodes)}
-        onOrganize={handleOrganize}
+        onFitToScreen={handleCenterCurrentView}
         onManageLinkTypes={() => setLinkTypesModalOpen(true)}
         onOpenFamilyGroups={() => setFamilyGroupsModalOpen(true)}
         hasFamilyGroups={normalizedFamilyGroups.length > 0}
@@ -1371,7 +1706,9 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         initialExpandedEdgeId={actionsModal.expandedEdgeId}
         hasParents={actionsModalHasParents}
         hasSpouse={actionsModalHasSpouse}
+        hasChildren={actionsModalHasChildren}
         lineageAncestorMode={actionsModalIsLineageAncestor}
+        allowGroupChildrenAction={allowGroupChildrenAction}
       />
 
       <PartnerSelectionModal
@@ -1542,7 +1879,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
       <svg className="w-full h-full pointer-events-none">
         <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
-          {renderedEdges.map(({ edge, fromNode, toNode, renderKey }) => {
+          {lineageViewMode !== 'radial' && renderedEdges.map(({ edge, fromNode, toNode, renderKey }) => {
             return (
               <FamilyEdge
                 key={renderKey}
@@ -1580,7 +1917,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             </g>
           ))}
 
-          {controlsRenderNode && lineageViewMode !== 'lineage' && (
+          {controlsRenderNode && lineageViewMode === 'relatives' && (
             <g
               className="pointer-events-auto"
               transform={`translate(${controlsRenderNode.x}, ${controlsRenderNode.y - 56})`}
@@ -1655,7 +1992,170 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             </g>
           )}
 
-          {displayedVisibleNodes.map(node => (
+          {/* Pencil button on selected/focused node in lineage mode (not radial — fan chart handles it) */}
+          {controlsRenderNode && lineageViewMode === 'lineage' && lineageAncestorNodeIds.has(controlsRenderNode.id) && (
+            <g
+              className="pointer-events-auto"
+              transform={`translate(${controlsRenderNode.x}, ${controlsRenderNode.y - 56})`}
+            >
+              <foreignObject x={-12} y={-12} width={24} height={24}>
+                <div className="w-full h-full flex items-center justify-center">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      openActionsModal(controlsNode.id);
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      openActionsModal(controlsNode.id);
+                    }}
+                    className="w-5 h-5 rounded-full border border-orange-300 bg-white/90 text-orange-600 flex items-center justify-center shadow-sm"
+                    title="Editar / Añadir padres"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                </div>
+              </foreignObject>
+            </g>
+          )}
+
+          {/* Plus indicator on unselected leaf ancestors in lineage mode (not radial — fan chart handles it) */}
+          {/* Fan chart rendering (radial mode only) */}
+          {lineageViewMode === 'radial' && fanData && (() => {
+            const { cx, cy, focusR, focusNodeId: fanFocusId, rings } = fanData;
+            const focusRenderNode = renderedNodeById.get(fanFocusId);
+            const fcx = focusRenderNode?.x ?? cx;
+            const fcy = focusRenderNode?.y ?? cy;
+            const allNodes = new Map(nodes.map(n => [n.id, n]));
+
+            return (
+              <g>
+                {/* Outer half-circle border */}
+                {rings.length > 0 && (() => {
+                  const lastRing = rings[rings.length - 1];
+                  const maxR = lastRing.outerR;
+                  const left = fanPolarToXY(fcx, fcy, maxR, 0);
+                  const right = fanPolarToXY(fcx, fcy, maxR, 180);
+                  return (
+                    <path
+                      d={`M ${left.x} ${left.y} A ${maxR} ${maxR} 0 0 0 ${right.x} ${right.y}`}
+                      fill="none"
+                      stroke="#e2e8f0"
+                      strokeWidth={1}
+                    />
+                  );
+                })()}
+
+                {/* Arc sectors */}
+                {rings.flatMap(ring =>
+                  ring.slots.map(slot => {
+                    const path = fanArcPath(fcx, fcy, slot.innerR, slot.outerR, slot.startAngle, slot.endAngle);
+                    const fill = getFanSectorColor(slot.gen, slot.slotIndex, slot.numSlots, !!slot.nodeId);
+                    const isSelected = slot.nodeId && (slot.nodeId === selectedNodeId || slot.nodeId === actionsModal.nodeId);
+                    const midAngle = (slot.startAngle + slot.endAngle) / 2;
+                    const midR = (slot.innerR + slot.outerR) / 2;
+                    const textPos = fanPolarToXY(fcx, fcy, midR, midAngle);
+                    const textRotation = midAngle - 90;
+                    const node = slot.nodeId ? allNodes.get(slot.nodeId) : null;
+                    const label = node
+                      ? [node.data?.firstName, node.data?.lastName].filter(Boolean).join(' ') || '?'
+                      : null;
+
+                    // Font size decreases with generation
+                    const fontSize = Math.max(7, 13 - slot.gen * 1.5);
+
+                    if (slot.nodeId) {
+                      return (
+                        <g
+                          key={`fan-${slot.gen}-${slot.slotIndex}`}
+                          className="pointer-events-auto cursor-pointer"
+                          onMouseDown={(e) => { e.stopPropagation(); openActionsModal(slot.nodeId); }}
+                          onTouchStart={(e) => { e.stopPropagation(); openActionsModal(slot.nodeId); }}
+                        >
+                          <path
+                            d={path}
+                            fill={fill}
+                            stroke={isSelected ? '#f97316' : '#cbd5e1'}
+                            strokeWidth={isSelected ? 2 : 0.8}
+                          />
+                          {label && (
+                            <text
+                              x={textPos.x}
+                              y={textPos.y}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fontSize={fontSize}
+                              fontWeight="500"
+                              fill="#1e293b"
+                              transform={`rotate(${textRotation}, ${textPos.x}, ${textPos.y})`}
+                              className="pointer-events-none select-none"
+                              style={{ maxWidth: `${slot.outerR - slot.innerR - 8}px` }}
+                            >
+                              {label.length > 14 ? `${label.slice(0, 13)}…` : label}
+                            </text>
+                          )}
+                        </g>
+                      );
+                    }
+
+                    // Empty slot — visual only (no quick-add button)
+                    return (
+                      <g key={`fan-empty-${slot.gen}-${slot.slotIndex}`}>
+                        <path
+                          d={path}
+                          fill={fill}
+                          stroke="#e2e8f0"
+                          strokeWidth={0.8}
+                          strokeDasharray="2 2"
+                        />
+                      </g>
+                    );
+                  })
+                )}
+
+                {/* Focus node center circle */}
+                <circle
+                  cx={fcx}
+                  cy={fcy}
+                  r={focusR - 2}
+                  fill="white"
+                  stroke="#cbd5e1"
+                  strokeWidth={1.5}
+                  className="pointer-events-auto cursor-pointer"
+                  onMouseDown={(e) => { e.stopPropagation(); openActionsModal(fanFocusId); }}
+                  onTouchStart={(e) => { e.stopPropagation(); openActionsModal(fanFocusId); }}
+                />
+                {(() => {
+                  const focusNodeData = allNodes.get(fanFocusId);
+                  const name = focusNodeData
+                    ? [focusNodeData.data?.firstName, focusNodeData.data?.lastName].filter(Boolean).join(' ') || '?'
+                    : '?';
+                  const words = name.split(' ');
+                  return (
+                    <text
+                      x={fcx}
+                      y={fcy}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={12}
+                      fontWeight="600"
+                      fill="#1e293b"
+                      className="pointer-events-none select-none"
+                    >
+                      {words.slice(0, 2).map((word, i) => (
+                        <tspan key={i} x={fcx} dy={i === 0 ? (words.length > 1 ? '-0.6em' : '0') : '1.2em'}>
+                          {word}
+                        </tspan>
+                      ))}
+                    </text>
+                  );
+                })()}
+              </g>
+            );
+          })()}
+
+          {lineageViewMode !== 'radial' && displayedVisibleNodes.map(node => (
             <FamilyNode
               key={node.id}
               node={node}

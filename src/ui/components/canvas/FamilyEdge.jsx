@@ -14,6 +14,7 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
   if (edge.type === EDGE_TYPES.SIBLING) return null;
 
   const isPartner = isPartnerEdgeType(edge.type);
+  const isParentBundle = edge.type === 'parent_bundle';
   const currentLabel = resolveEdgeLabel(edge);
   const isBroken = edge.type === EDGE_TYPES.EX_SPOUSE || isBrokenLabel(currentLabel);
 
@@ -33,13 +34,20 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
     strokeColor = edge.styleColor || '#8B5CF6';
     strokeWidth = 1.5;
     strokeDash = edge.styleMode === 'dashed' ? '6,4' : '0';
+  } else if (isParentBundle) {
+    // Couple-connector → child line (single branch)
+    const midY = (fromNode.y + toNode.y) / 2;
+    d = `M ${fromNode.x} ${fromNode.y} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - NODE_RADIUS}`;
+    strokeColor = edge.styleColor || '#F9A8D4';
+    strokeWidth = 1.2;
+    strokeDash = edge.styleDash || '0';
   } else {
-    // Parent→child lines: orthogonal step path (down, across, down)
+    // Single-parent → child line
     const midY = (fromNode.y + toNode.y) / 2;
     d = `M ${fromNode.x} ${fromNode.y + NODE_RADIUS} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - NODE_RADIUS}`;
-    strokeColor = '#94A3B8';
+    strokeColor = edge.styleColor || '#111827';
     strokeWidth = 1;
-    strokeDash = '0';
+    strokeDash = edge.styleDash || '0';
   }
 
   return (
@@ -51,7 +59,7 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
         strokeWidth="20"
         fill="none"
         className="pointer-events-auto cursor-pointer hover:stroke-purple-300/20 transition-colors"
-        onClick={(e) => { e.stopPropagation(); onLineClick(edge.id, fromNode.id); }}
+        onClick={(e) => { e.stopPropagation(); onLineClick(edge.id, edge.sourceNodeId || fromNode.id); }}
       />
       {/* Visible line */}
       {edge.type !== EDGE_TYPES.CUSTOM || edge.styleMode !== 'badge' ? (

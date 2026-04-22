@@ -12,7 +12,7 @@ export default function PartnerSelectionModal({ selection, nodes, onClose, onSel
   const preferredOptionIds = new Set(selection.preferredOptionIds || selection.partners || []);
   const suggestedOptionIds = optionIds.filter((id) => preferredOptionIds.has(id));
   const otherOptionIds = optionIds.filter((id) => !preferredOptionIds.has(id));
-  const useWheelForOtherOptions = mode === 'child' && otherOptionIds.length > 3;
+  const useWheelForOtherOptions = otherOptionIds.length > 3;
 
   const wheelOptions = otherOptionIds
     .map((id) => {
@@ -47,6 +47,12 @@ export default function PartnerSelectionModal({ selection, nodes, onClose, onSel
     },
   };
   const ui = contentByMode[mode] || contentByMode.child;
+  const wheelTitleByMode = {
+    child: 'Seleccionar posible co-progenitor',
+    spouse: 'Seleccionar posible pareja',
+    ex_spouse: 'Seleccionar posible vínculo',
+  };
+  const wheelTitle = wheelTitleByMode[mode] || 'Seleccionar persona';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
@@ -89,7 +95,7 @@ export default function PartnerSelectionModal({ selection, nodes, onClose, onSel
                 }}
                 options={wheelOptions}
                 placeholder="Seleccionar persona"
-                title="Seleccionar posible co-progenitor"
+                title={wheelTitle}
                 icon={User}
               />
             </div>
