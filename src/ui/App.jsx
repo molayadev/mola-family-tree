@@ -8,6 +8,7 @@ import { createNode } from '../domain/entities/Node';
 import LandingPage from './components/auth/LandingPage';
 import AuthForm from './components/auth/AuthForm';
 import FamilyCanvas from './components/canvas/FamilyCanvas';
+import AtomicCanvas from './components/canvas/AtomicCanvas';
 
 // Wire up adapters (swap LocalStorageAdapter for FirestoreAdapter, etc.)
 const storageAdapter = new LocalStorageAdapter();
@@ -25,6 +26,7 @@ export default function App() {
   const [edges, setEdges] = useState([]);
   const [customLinkTypes, setCustomLinkTypes] = useState([]);
   const [familyGroups, setFamilyGroups] = useState([]);
+  const [displayMode, setDisplayMode] = useState('genealogic');
 
   const refreshHasUsers = useCallback(() => {
     setHasLocalUsersFlag(authService.hasUsers());
@@ -102,6 +104,11 @@ export default function App() {
     setEdges([]);
     setCustomLinkTypes([]);
     setFamilyGroups([]);
+    setDisplayMode('genealogic');
+  }, []);
+
+  const handleModeChange = useCallback((nextMode) => {
+    setDisplayMode(nextMode);
   }, []);
 
   if (view === 'landing') {
@@ -124,6 +131,23 @@ export default function App() {
     return <AuthForm mode="register" onSubmit={handleRegister} onCancel={() => setView('landing')} />;
   }
 
+  if (displayMode === 'atomic') {
+    return (
+      <AtomicCanvas
+        username={currentUser.username}
+        nodes={nodes}
+        edges={edges}
+        customLinkTypes={customLinkTypes}
+        familyGroups={familyGroups}
+        treeService={treeService}
+        exportService={exportService}
+        undoService={undoService}
+        onSave={handleSave}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   return (
     <FamilyCanvas
       username={currentUser.username}
@@ -136,6 +160,7 @@ export default function App() {
       undoService={undoService}
       onSave={handleSave}
       onLogout={handleLogout}
+      onModeChange={handleModeChange}
     />
   );
 }

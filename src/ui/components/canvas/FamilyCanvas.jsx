@@ -6,6 +6,7 @@ import { useCanvas } from '../../../application/hooks/useCanvas';
 import { downloadTreeSnapshot } from '../../../application/services/SnapshotService';
 import CanvasHUD from './CanvasHUD';
 import ZoomControls from './ZoomControls';
+import ModeSelector from './ModeSelector';
 import FamilyNode from './FamilyNode';
 import FamilyEdge from './FamilyEdge';
 import NodeActionsModal from '../modals/NodeActionsModal';
@@ -626,7 +627,7 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
   };
 };
 
-export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, familyGroups, treeService, exportService, undoService, onSave, onLogout }) {
+export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, familyGroups, treeService, exportService, undoService, onSave, onLogout, onModeChange }) {
   const [actionsModal, setActionsModal] = useState({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
@@ -1706,6 +1707,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       />
 
       <ZoomControls onZoomIn={zoomIn} onZoomOut={zoomOut} />
+
+      <ModeSelector currentMode="genealogic" onModeChange={onModeChange} />
 
       <NodeActionsModal
         key={actionsModalKey}
