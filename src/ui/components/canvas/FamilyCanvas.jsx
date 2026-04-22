@@ -269,6 +269,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     transform,
     setTransform,
     canvasRef,
+    stateRef,
     fitToScreen,
     handleWheel,
     handleTouchStart,
@@ -632,6 +633,12 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [treeService, edges, nodes, saveAndUpdate]);
 
   const handleNodePointerDownWrapped = useCallback((e, nodeId) => {
+    const isSyntheticMouseAfterTouch = (
+      e.type === 'mousedown'
+      && Date.now() - stateRef.current.lastTouchEndTime < 500
+    );
+    if (isSyntheticMouseAfterTouch) return;
+
     if (groupDraft) {
       e.stopPropagation();
       e.preventDefault();
@@ -654,7 +661,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     }
 
     handleNodePointerDown(e, nodeId, nodes);
-  }, [groupDraft, linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes]);
+  }, [groupDraft, linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes, stateRef]);
 
   const handleSelectNode = useCallback((nodeId) => {
     openActionsModal(nodeId);
