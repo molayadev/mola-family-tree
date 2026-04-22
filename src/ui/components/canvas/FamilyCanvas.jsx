@@ -721,7 +721,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       className="h-screen w-screen bg-[#F3F0EB] overflow-hidden relative font-sans text-gray-700 selection:bg-orange-200 touch-none"
       ref={canvasRef}
       onMouseDown={(e) => {
-        if (e.target.closest?.('[data-collapsed-group-menu="true"]')) return;
+        if (e.target instanceof Element && e.target.closest('[data-collapsed-group-menu="true"]')) return;
         setCollapsedGroupMenu(null);
         handleMouseDown(e, transform);
       }}
@@ -730,7 +730,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       onMouseLeave={handleMouseUpCallback}
       onWheel={handleWheel}
       onTouchStart={(e) => {
-        if (e.target.closest?.('[data-collapsed-group-menu="true"]')) return;
+        if (e.target instanceof Element && e.target.closest('[data-collapsed-group-menu="true"]')) return;
         setCollapsedGroupMenu(null);
         handleTouchStart(e, transform);
       }}
