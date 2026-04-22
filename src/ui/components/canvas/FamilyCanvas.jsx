@@ -721,6 +721,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       className="h-screen w-screen bg-[#F3F0EB] overflow-hidden relative font-sans text-gray-700 selection:bg-orange-200 touch-none"
       ref={canvasRef}
       onMouseDown={(e) => {
+        if (e.target.closest?.('[data-collapsed-group-menu="true"]')) return;
         setCollapsedGroupMenu(null);
         handleMouseDown(e, transform);
       }}
@@ -729,6 +730,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       onMouseLeave={handleMouseUpCallback}
       onWheel={handleWheel}
       onTouchStart={(e) => {
+        if (e.target.closest?.('[data-collapsed-group-menu="true"]')) return;
         setCollapsedGroupMenu(null);
         handleTouchStart(e, transform);
       }}
@@ -896,6 +898,9 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       {collapsedGroupMenuPosition && selectedCollapsedGroup && (
         <div
           className="absolute z-30 pointer-events-auto"
+          data-collapsed-group-menu="true"
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
           style={{
             left: `${collapsedGroupMenuPosition.left}px`,
             top: `${collapsedGroupMenuPosition.top}px`,
@@ -952,6 +957,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             <g
               key={bubble.id}
               className="pointer-events-auto cursor-pointer"
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 setCollapsedGroupMenu((prev) => (
