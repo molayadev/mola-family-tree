@@ -17,6 +17,11 @@ import Input from '../common/Input';
 
 const GROUP_EMOJIS = ['👨‍👩‍👧', '👨‍👩‍👧‍👦', '👩‍👩‍👦', '👨‍👨‍👧', '🏡', '💞', '🌳', '💫', '🫶', '✨'];
 const GROUP_COLORS = ['#F97316', '#7C3AED', '#0891B2', '#16A34A', '#DC2626', '#EA580C', '#4F46E5', '#D946EF'];
+const LINEAGE_VIEW_MODES = [
+  { value: 'lineage', label: 'Linaje' },
+  { value: 'ancestors', label: 'Ancestros' },
+  { value: 'descendants', label: 'Descendencia' },
+];
 
 const randomGroupEmoji = () => GROUP_EMOJIS[Math.floor(Math.random() * GROUP_EMOJIS.length)];
 const randomGroupColor = () => GROUP_COLORS[Math.floor(Math.random() * GROUP_COLORS.length)];
@@ -66,11 +71,6 @@ const computeHiddenNodeIds = (nodes, groups, isolatedGroupId) => {
   });
 
   return hidden;
-};
-
-const computeVisibleNodes = (nodes, groups, isolatedGroupId) => {
-  const hidden = computeHiddenNodeIds(nodes, groups, isolatedGroupId);
-  return nodes.filter(n => !hidden.has(n.id));
 };
 
 const buildAutoFamilyGroups = (nodes, edges) => {
@@ -123,10 +123,142 @@ const buildAutoFamilyGroups = (nodes, edges) => {
   });
 };
 
+const preferMotherParent = (parents, nodeMap, preferredId = null) => {
+  if (!Array.isArray(parents) || parents.length === 0) return null;
+  if (preferredId && parents.includes(preferredId)) return preferredId;
+  const mother = parents.find((id) => nodeMap.get(id)?.data?.gender === 'female');
+  if (mother) return mother;
+  const father = parents.find((id) => nodeMap.get(id)?.data?.gender === 'male');
+  if (father) return father;
+  return parents[0];
+};
+
+const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId, viewMode) => {
+  const nodeMap = new Map(nodes.map(node => [node.id, node]));
+  const parentsByChild = new Map();
+  const childrenByParent = new Map();
+  const partnersByNode = new Map();
+
+  edges.forEach((edge) => {
+    if (edge.type === 'parent') {
+      if (!parentsByChild.has(edge.to)) parentsByChild.set(edge.to, []);
+      parentsByChild.get(edge.to).push(edge.from);
+      if (!childrenByParent.has(edge.from)) childrenByParent.set(edge.from, []);
+      childrenByParent.get(edge.from).push(edge.to);
+      return;
+    }
+
+    if (!isPartnerEdgeType(edge.type)) return;
+    if (!partnersByNode.has(edge.from)) partnersByNode.set(edge.from, []);
+    if (!partnersByNode.has(edge.to)) partnersByNode.set(edge.to, []);
+    partnersByNode.get(edge.from).push(edge.to);
+    partnersByNode.get(edge.to).push(edge.from);
+  });
+
+  const resolvedFocusNodeId = (
+    focusNodeId && nodeMap.has(focusNodeId)
+      ? focusNodeId
+      : (nodes[0]?.id || null)
+  );
+  const visibleNodeIds = new Set();
+
+  const addNode = (nodeId) => {
+    if (!nodeMap.has(nodeId)) return;
+    visibleNodeIds.add(nodeId);
+  };
+
+  const addNodePartners = (nodeId) => {
+    (partnersByNode.get(nodeId) || []).forEach((partnerId) => addNode(partnerId));
+  };
+
+  const addDescendants = (nodeId) => {
+    const queue = [nodeId];
+    const visited = new Set();
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      if (!currentId || visited.has(currentId)) continue;
+      visited.add(currentId);
+      addNode(currentId);
+      addNodePartners(currentId);
+      (childrenByParent.get(currentId) || []).forEach((childId) => {
+        addNode(childId);
+        queue.push(childId);
+      });
+    }
+  };
+
+  if (!resolvedFocusNodeId) {
+    return {
+      resolvedFocusNodeId: null,
+      visibleNodeIds,
+      focusParentOptions: [],
+      activeParentId: null,
+    };
+  }
+
+  const focusParentsRaw = [...new Set(parentsByChild.get(resolvedFocusNodeId) || [])]
+    .filter(id => nodeMap.has(id));
+  const focusParentOptions = focusParentsRaw.map((parentId, index) => {
+    const parentNode = nodeMap.get(parentId);
+    const gender = parentNode?.data?.gender || 'unknown';
+    const branchShortLabel = gender === 'female' ? 'M' : (gender === 'male' ? 'P' : `${index + 1}`);
+    return {
+      id: parentId,
+      gender,
+      branchShortLabel,
+      label: `${parentNode?.data?.firstName || 'Rama'} ${parentNode?.data?.lastName || ''}`.trim(),
+    };
+  });
+
+  addNode(resolvedFocusNodeId);
+  addNodePartners(resolvedFocusNodeId);
+
+  if (viewMode === 'descendants' || viewMode === 'lineage') {
+    addDescendants(resolvedFocusNodeId);
+  }
+
+  let activeParentId = null;
+  if (viewMode === 'ancestors' || viewMode === 'lineage') {
+    let currentChildId = resolvedFocusNodeId;
+    const visited = new Set();
+    while (currentChildId && !visited.has(currentChildId)) {
+      visited.add(currentChildId);
+      const parents = [...new Set(parentsByChild.get(currentChildId) || [])].filter(id => nodeMap.has(id));
+      if (parents.length === 0) break;
+      const preferredParentId = preferMotherParent(
+        parents,
+        nodeMap,
+        parentChoiceByChildId?.[currentChildId] || null,
+      );
+      if (!preferredParentId) break;
+      if (currentChildId === resolvedFocusNodeId) activeParentId = preferredParentId;
+      addNode(preferredParentId);
+      addNodePartners(preferredParentId);
+      currentChildId = preferredParentId;
+    }
+  } else {
+    activeParentId = preferMotherParent(
+      focusParentsRaw,
+      nodeMap,
+      parentChoiceByChildId?.[resolvedFocusNodeId] || null,
+    );
+  }
+
+  return {
+    resolvedFocusNodeId,
+    visibleNodeIds,
+    focusParentOptions,
+    activeParentId,
+  };
+};
+
 export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, familyGroups, treeService, exportService, undoService, onSave, onLogout }) {
   const [actionsModal, setActionsModal] = useState({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
+  const [focusNodeId, setFocusNodeId] = useState(() => nodes[0]?.id || null);
+  const [lineageViewMode, setLineageViewMode] = useState('lineage');
+  const [parentChoiceByChildId, setParentChoiceByChildId] = useState({});
   const [linkTypesModalOpen, setLinkTypesModalOpen] = useState(false);
   const [familyGroupsModalOpen, setFamilyGroupsModalOpen] = useState(false);
   const [isolatedGroupId, setIsolatedGroupId] = useState(null);
@@ -140,17 +272,53 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
   const autoGroupsInitializedRef = useRef(false);
 
+  useEffect(() => {
+    if (nodes.length === 0) {
+      setFocusNodeId(null);
+      return;
+    }
+
+    const validNodeIds = new Set(nodes.map(node => node.id));
+    if (!focusNodeId || !validNodeIds.has(focusNodeId)) {
+      setFocusNodeId(nodes[0].id);
+    }
+
+    setParentChoiceByChildId((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([childId, parentId]) => {
+        if (validNodeIds.has(childId) && validNodeIds.has(parentId)) next[childId] = parentId;
+      });
+      return next;
+    });
+  }, [nodes, focusNodeId]);
+
   const normalizedFamilyGroups = useMemo(() => normalizeFamilyGroups(familyGroups, nodes), [familyGroups, nodes]);
+
+  const lineageVisibility = useMemo(
+    () => buildLineageVisibility(nodes, edges, focusNodeId, parentChoiceByChildId, lineageViewMode),
+    [nodes, edges, focusNodeId, parentChoiceByChildId, lineageViewMode],
+  );
 
   const hiddenNodeIds = useMemo(
     () => computeHiddenNodeIds(nodes, normalizedFamilyGroups, isolatedGroupId),
     [nodes, normalizedFamilyGroups, isolatedGroupId],
   );
 
-  const effectiveHiddenNodeIds = useMemo(
-    () => (groupDraft ? new Set() : hiddenNodeIds),
-    [groupDraft, hiddenNodeIds],
-  );
+  const lineageHiddenNodeIds = useMemo(() => {
+    const hidden = new Set();
+    if (groupDraft) return hidden;
+    nodes.forEach((node) => {
+      if (!lineageVisibility.visibleNodeIds.has(node.id)) hidden.add(node.id);
+    });
+    return hidden;
+  }, [nodes, lineageVisibility.visibleNodeIds, groupDraft]);
+
+  const effectiveHiddenNodeIds = useMemo(() => {
+    if (groupDraft) return new Set();
+    const merged = new Set(hiddenNodeIds);
+    lineageHiddenNodeIds.forEach(nodeId => merged.add(nodeId));
+    return merged;
+  }, [groupDraft, hiddenNodeIds, lineageHiddenNodeIds]);
 
   const visibleNodes = useMemo(
     () => nodes.filter(n => !effectiveHiddenNodeIds.has(n.id)),
@@ -292,6 +460,24 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     setTransform({ x: window.innerWidth / 2, y: window.innerHeight / 2, k: 1 });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!lineageVisibility.resolvedFocusNodeId) return;
+    if (groupDraft) return;
+    const filteredVisibleNodes = nodes.filter(node => !effectiveHiddenNodeIds.has(node.id));
+    if (filteredVisibleNodes.length === 0) return;
+    const timer = setTimeout(() => fitToScreen(filteredVisibleNodes), 100);
+    return () => clearTimeout(timer);
+  }, [
+    lineageVisibility.resolvedFocusNodeId,
+    lineageViewMode,
+    parentChoiceByChildId,
+    isolatedGroupId,
+    groupDraft,
+    nodes,
+    effectiveHiddenNodeIds,
+    fitToScreen,
+  ]);
+
   // Track if we need to save state before node movement
   const nodeMovementStateRef = useRef({ savedForCurrentDrag: false });
 
@@ -347,21 +533,101 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [normalizedFamilyGroups]);
 
   const handleLineClick = useCallback((edgeId, sourceNodeId) => {
+    setFocusNodeId(sourceNodeId);
     openActionsModal(sourceNodeId, 'links', edgeId);
     selectGroupFromNode(sourceNodeId);
   }, [openActionsModal, selectGroupFromNode]);
 
   const focusVisibleNodes = useCallback((nextGroups, nextIsolatedGroupId = isolatedGroupId) => {
-    const nextVisible = computeVisibleNodes(nodes, nextGroups, nextIsolatedGroupId);
+    const groupHidden = computeHiddenNodeIds(nodes, nextGroups, nextIsolatedGroupId);
+    const nextVisible = nodes.filter(node => (
+      !groupHidden.has(node.id)
+      && lineageVisibility.visibleNodeIds.has(node.id)
+    ));
     setTimeout(() => fitToScreen(nextVisible.length > 0 ? nextVisible : nodes), 100);
-  }, [nodes, isolatedGroupId, fitToScreen]);
+  }, [nodes, isolatedGroupId, fitToScreen, lineageVisibility.visibleNodeIds]);
 
   const confirmAddChild = useCallback((sourceId, partnerId) => {
+    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const result = treeService.addChild(nodes, edges, sourceId, partnerId);
     saveAndUpdate(result.nodes, result.edges);
     setPartnerSelection(null);
+    const createdChild = result.nodes[result.nodes.length - 1];
+    if (createdChild) setFocusNodeId(createdChild.id);
     setTimeout(() => fitToScreen(result.nodes), 100);
-  }, [nodes, edges, treeService, saveAndUpdate, fitToScreen]);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, undoService]);
+
+  const handleSelectPartnerAction = useCallback((selectionValue) => {
+    if (!partnerSelection) return;
+    const sourceId = partnerSelection.sourceId;
+    const sourceNode = nodes.find(node => node.id === sourceId);
+    if (!sourceNode) {
+      setPartnerSelection(null);
+      return;
+    }
+
+    if (partnerSelection.mode === 'child') {
+      if (selectionValue === 'NEW') {
+        undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
+        const withPartner = treeService.addSpouse(nodes, edges, sourceNode);
+        const createdPartner = withPartner.nodes[withPartner.nodes.length - 1];
+        const result = treeService.addChild(
+          withPartner.nodes,
+          withPartner.edges,
+          sourceId,
+          createdPartner?.id || null,
+        );
+        saveAndUpdate(result.nodes, result.edges);
+        setFocusNodeId(createdPartner?.id || sourceId);
+        setPartnerSelection(null);
+        setTimeout(() => fitToScreen(result.nodes), 100);
+        return;
+      }
+      confirmAddChild(sourceId, selectionValue);
+      return;
+    }
+
+    if (partnerSelection.mode === 'spouse') {
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
+      if (selectionValue === 'NEW') {
+        const result = treeService.addSpouse(nodes, edges, sourceNode);
+        saveAndUpdate(result.nodes, result.edges);
+        const createdSpouse = result.nodes[result.nodes.length - 1];
+        setFocusNodeId(createdSpouse?.id || sourceId);
+        setPartnerSelection(null);
+        setTimeout(() => fitToScreen(result.nodes), 100);
+        return;
+      }
+      if (selectionValue) {
+        const result = treeService.linkPartner(nodes, edges, sourceId, selectionValue, 'Casado/a');
+        saveAndUpdate(result.nodes, result.edges);
+      }
+      setFocusNodeId(selectionValue || sourceId);
+      setPartnerSelection(null);
+      setTimeout(() => fitToScreen(nodes), 100);
+      return;
+    }
+
+    if (partnerSelection.mode === 'ex_spouse') {
+      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
+      if (selectionValue === 'NEW') {
+        const result = treeService.addExSpouse(nodes, edges, sourceNode);
+        saveAndUpdate(result.nodes, result.edges);
+        const createdEx = result.nodes[result.nodes.length - 1];
+        setFocusNodeId(createdEx?.id || sourceId);
+        setPartnerSelection(null);
+        setTimeout(() => fitToScreen(result.nodes), 100);
+        return;
+      }
+      if (selectionValue) {
+        const result = treeService.linkPartner(nodes, edges, sourceId, selectionValue, 'Divorciado');
+        saveAndUpdate(result.nodes, result.edges);
+      }
+      setFocusNodeId(selectionValue || sourceId);
+      setPartnerSelection(null);
+      setTimeout(() => fitToScreen(nodes), 100);
+    }
+  }, [partnerSelection, nodes, edges, customLinkTypes, normalizedFamilyGroups, undoService, treeService, saveAndUpdate, fitToScreen, confirmAddChild]);
 
   const enterLinkingMode = useCallback((sourceId) => {
     closeActionsModal();
@@ -384,25 +650,44 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'add_child') {
       const partners = treeService.getPartners(edges, nodeId);
-      if (partners.length > 0) {
-        setPartnerSelection({ sourceId: nodeId, partners });
-        closeActionsModal();
-        return;
-      }
-      confirmAddChild(nodeId, null);
+      const partnerSet = new Set(partners);
+      const candidates = nodes
+        .filter(node => node.id !== nodeId)
+        .map(node => node.id)
+        .filter((id, index, arr) => arr.indexOf(id) === index);
+      const orderedCandidates = [...partners, ...candidates.filter(id => !partnerSet.has(id))];
+      setPartnerSelection({
+        mode: 'child',
+        sourceId: nodeId,
+        preferredOptionIds: partners,
+        options: orderedCandidates,
+      });
       closeActionsModal();
       return;
     } else if (action === 'add_spouse') {
       if (treeService.hasSpouse(edges, nodeId)) return;
-      const result = treeService.addSpouse(nodes, edges, sourceNode);
-      saveAndUpdate(result.nodes, result.edges);
+      const partnerSet = new Set(treeService.getPartners(edges, nodeId));
+      const options = nodes
+        .filter(node => node.id !== nodeId && !partnerSet.has(node.id))
+        .map(node => node.id);
+      setPartnerSelection({
+        mode: 'spouse',
+        sourceId: nodeId,
+        options,
+      });
       closeActionsModal();
-      setTimeout(() => fitToScreen(result.nodes), 100);
+      return;
     } else if (action === 'add_ex_spouse') {
-      const result = treeService.addExSpouse(nodes, edges, sourceNode);
-      saveAndUpdate(result.nodes, result.edges);
+      const options = nodes
+        .filter(node => node.id !== nodeId)
+        .map(node => node.id);
+      setPartnerSelection({
+        mode: 'ex_spouse',
+        sourceId: nodeId,
+        options,
+      });
       closeActionsModal();
-      setTimeout(() => fitToScreen(result.nodes), 100);
+      return;
     } else if (action === 'delete') {
       undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       const result = treeService.deleteNode(nodes, edges, nodeId);
@@ -412,7 +697,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     } else if (action === 'link') {
       enterLinkingMode(nodeId);
     }
-  }, [actionsModal.nodeId, nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal, enterLinkingMode, undoService]);
+  }, [actionsModal.nodeId, nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, closeActionsModal, enterLinkingMode, undoService]);
 
   const handleUpdateNode = useCallback((nodeId, newData) => {
     const updatedNodes = treeService.updateNode(nodes, nodeId, newData);
@@ -664,6 +949,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [groupDraft, linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes, stateRef]);
 
   const handleSelectNode = useCallback((nodeId) => {
+    setFocusNodeId(nodeId);
     openActionsModal(nodeId);
     selectGroupFromNode(nodeId);
   }, [openActionsModal, selectGroupFromNode]);
@@ -692,6 +978,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [linkingMode, linkTarget, edges, treeService]);
 
   const actionsModalNode = useMemo(() => nodes.find(n => n.id === actionsModal.nodeId), [nodes, actionsModal.nodeId]);
+  const focusedNode = useMemo(() => nodes.find(n => n.id === lineageVisibility.resolvedFocusNodeId) || null, [nodes, lineageVisibility.resolvedFocusNodeId]);
 
   const actionsModalHasParents = useMemo(() => {
     if (!actionsModal.nodeId) return false;
@@ -752,6 +1039,10 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         onLogout={onLogout}
         onUndo={handleUndo}
         canUndo={canUndo}
+        viewMode={lineageViewMode}
+        onChangeViewMode={setLineageViewMode}
+        viewModeOptions={LINEAGE_VIEW_MODES}
+        focusedNodeName={focusedNode ? `${focusedNode.data.firstName} ${focusedNode.data.lastName}`.trim() : ''}
       />
 
       <ZoomControls onZoomIn={zoomIn} onZoomOut={zoomOut} />
@@ -777,7 +1068,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         selection={partnerSelection}
         nodes={nodes}
         onClose={() => setPartnerSelection(null)}
-        onSelect={(partnerId) => confirmAddChild(partnerSelection.sourceId, partnerId)}
+        onSelect={handleSelectPartnerAction}
       />
 
       <LinkTypeSelectionModal
@@ -978,6 +1269,60 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
               </text>
             </g>
           ))}
+
+          {focusedNode && lineageVisibility.focusParentOptions.length > 1 && (
+            <g
+              className="pointer-events-auto"
+              transform={`translate(${focusedNode.x}, ${focusedNode.y - 56})`}
+            >
+              <rect
+                x={-26}
+                y={-9}
+                width={52}
+                height={18}
+                rx={9}
+                fill="white"
+                stroke="#CBD5E1"
+                strokeWidth="1"
+              />
+              {lineageVisibility.focusParentOptions.slice(0, 2).map((option, index) => {
+                const activeParentId = lineageVisibility.activeParentId || lineageVisibility.focusParentOptions[0]?.id || null;
+                const isActive = activeParentId === option.id;
+                const baseX = index === 0 ? -18 : 6;
+                return (
+                  <g
+                    key={option.id}
+                    className="cursor-pointer"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setParentChoiceByChildId(prev => ({ ...prev, [focusedNode.id]: option.id }));
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      setParentChoiceByChildId(prev => ({ ...prev, [focusedNode.id]: option.id }));
+                    }}
+                  >
+                    <rect
+                      x={baseX}
+                      y={-5}
+                      width={12}
+                      height={10}
+                      rx={5}
+                      fill={isActive ? '#F97316' : '#94A3B8'}
+                    />
+                    <text
+                      x={baseX + 6}
+                      y={3}
+                      textAnchor="middle"
+                      className="text-[7px] font-bold fill-white pointer-events-none"
+                    >
+                      {option.branchShortLabel}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          )}
 
           {visibleNodes.map(node => (
             <FamilyNode

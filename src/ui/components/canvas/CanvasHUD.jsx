@@ -2,7 +2,25 @@ import { useState } from 'react';
 
 import { Target, Download, LogOut, Menu, X, Camera, LayoutGrid, Undo, Link as LinkIcon, Users } from 'lucide-react';
 
-export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onOrganize, onManageLinkTypes, onOpenFamilyGroups, hasFamilyGroups, onExport, onSnapshot, onLogout, onUndo, canUndo }) {
+export default function CanvasHUD({
+  username,
+  nodeCount,
+  zoom,
+  onFitToScreen,
+  onOrganize,
+  onManageLinkTypes,
+  onOpenFamilyGroups,
+  hasFamilyGroups,
+  onExport,
+  onSnapshot,
+  onLogout,
+  onUndo,
+  canUndo,
+  viewMode,
+  onChangeViewMode,
+  viewModeOptions = [],
+  focusedNodeName = '',
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen(prev => !prev);
@@ -20,6 +38,28 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
         <div className="bg-white/80 backdrop-blur-md p-3 rounded-2xl shadow-sm border border-white pointer-events-auto">
           <h2 className="font-bold text-gray-800">Familia de {username}</h2>
           <p className="text-xs text-gray-500">{nodeCount} familiares • Zoom: {Math.round(zoom * 100)}%</p>
+          {focusedNodeName && (
+            <p className="text-[11px] text-gray-500 mt-1">
+              Nodo activo: <span className="font-semibold text-gray-700">{focusedNodeName}</span>
+            </p>
+          )}
+          {viewModeOptions.length > 0 && (
+            <div className="mt-2 inline-flex rounded-xl border border-gray-200 bg-white p-1 gap-1">
+              {viewModeOptions.map((mode) => (
+                <button
+                  key={mode.value}
+                  onClick={() => onChangeViewMode(mode.value)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                    viewMode === mode.value
+                      ? 'bg-orange-500 text-white'
+                      : 'text-gray-600 hover:bg-orange-50'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 pointer-events-auto">
@@ -78,7 +118,32 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
               <div className="px-3 py-2 border-b border-gray-100 mb-1">
                 <p className="font-bold text-gray-800 text-sm">Familia de {username}</p>
                 <p className="text-[10px] text-gray-500">{nodeCount} familiares • Zoom: {Math.round(zoom * 100)}%</p>
+                {focusedNodeName && (
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Activo: <span className="font-semibold text-gray-700">{focusedNodeName}</span>
+                  </p>
+                )}
               </div>
+
+              {viewModeOptions.length > 0 && (
+                <div className="px-2 pb-2">
+                  <div className="grid grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-white p-1">
+                    {viewModeOptions.map((mode) => (
+                      <button
+                        key={mode.value}
+                        onClick={() => handleAction(() => onChangeViewMode(mode.value))}
+                        className={`px-1.5 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${
+                          viewMode === mode.value
+                            ? 'bg-orange-500 text-white'
+                            : 'text-gray-600 hover:bg-orange-50'
+                        }`}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={() => handleAction(onUndo)}
