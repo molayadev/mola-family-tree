@@ -6,70 +6,232 @@
       "id": "abuelo-paterno",
       "x": -280,
       "y": -280,
-      "data": { "firstName": "José", "lastName": "Ruiz", "gender": "male", "birthDate": "", "birthTime": "", "deathDate": "", "ascendantSign": "", "sunSign": "", "moonSign": "", "twinType": "", "birthOrder": "", "birthLatitude": "", "birthLongitude": "", "additionalInfo": "Abuelo paterno" }
+      "data": {
+        "firstName": "José",
+        "lastName": "Ruiz",
+        "gender": "male",
+        "additionalInfo": "Abuelo paterno",
+        "birthDate": "",
+        "birthTime": "",
+        "deathDate": "",
+        "twinType": "",
+        "birthOrder": ""
+      }
     },
     {
       "id": "abuela-paterna",
       "x": -140,
       "y": -250,
-      "data": { "firstName": "María", "lastName": "Ruiz", "gender": "female", "birthDate": "", "birthTime": "", "deathDate": "", "ascendantSign": "", "sunSign": "", "moonSign": "", "twinType": "", "birthOrder": "", "birthLatitude": "", "birthLongitude": "", "additionalInfo": "Abuela paterna" }
+      "data": {
+        "firstName": "María",
+        "lastName": "Ruiz",
+        "gender": "female",
+        "additionalInfo": "Abuela paterna",
+        "birthDate": "",
+        "birthTime": "",
+        "deathDate": "",
+        "twinType": "",
+        "birthOrder": ""
+      }
     },
     {
       "id": "padre",
       "x": -210,
       "y": -70,
-      "data": { "firstName": "Carlos", "lastName": "Ruiz", "gender": "male", "birthDate": "", "birthTime": "", "deathDate": "", "ascendantSign": "", "sunSign": "", "moonSign": "", "twinType": "", "birthOrder": "", "birthLatitude": "", "birthLongitude": "", "additionalInfo": "Hijo del matrimonio de abuelos" }
+      "data": {
+        "firstName": "Carlos",
+        "lastName": "Ruiz",
+        "gender": "male",
+        "additionalInfo": "Hijo del matrimonio de abuelos",
+        "birthDate": "",
+        "birthTime": "",
+        "deathDate": "",
+        "twinType": "",
+        "birthOrder": ""
+      }
     },
     {
       "id": "madre",
       "x": -60,
       "y": -40,
-      "data": { "firstName": "Ana", "lastName": "López", "gender": "female", "birthDate": "", "birthTime": "", "deathDate": "", "ascendantSign": "", "sunSign": "", "moonSign": "", "twinType": "", "birthOrder": "", "birthLatitude": "", "birthLongitude": "", "additionalInfo": "Cónyuge de Carlos" }
+      "data": {
+        "firstName": "Ana",
+        "lastName": "López",
+        "gender": "female",
+        "additionalInfo": "Cónyuge de Carlos",
+        "birthDate": "",
+        "birthTime": "",
+        "deathDate": "",
+        "twinType": "",
+        "birthOrder": ""
+      }
     },
     {
       "id": "hija-1",
       "x": -160,
       "y": 140,
-      "data": { "firstName": "Sofía", "lastName": "Ruiz", "gender": "female", "birthDate": "", "birthTime": "", "deathDate": "", "ascendantSign": "", "sunSign": "", "moonSign": "", "twinType": "", "birthOrder": "", "birthLatitude": "", "birthLongitude": "", "additionalInfo": "Hija de Carlos y Ana" }
+      "data": {
+        "firstName": "Sofía",
+        "lastName": "Ruiz",
+        "gender": "female",
+        "additionalInfo": "Hija de Carlos y Ana",
+        "birthDate": "",
+        "birthTime": "",
+        "deathDate": "",
+        "twinType": "",
+        "birthOrder": ""
+      }
     },
     {
       "id": "hijo-2",
       "x": -20,
       "y": 140,
-      "data": { "firstName": "Mateo", "lastName": "Ruiz", "gender": "male", "birthDate": "", "birthTime": "", "deathDate": "", "ascendantSign": "", "sunSign": "", "moonSign": "", "twinType": "", "birthOrder": "", "birthLatitude": "", "birthLongitude": "", "additionalInfo": "Hijo de Carlos y Ana" }
+      "data": {
+        "firstName": "Mateo",
+        "lastName": "Ruiz",
+        "gender": "male",
+        "additionalInfo": "Hijo de Carlos y Ana",
+        "birthDate": "",
+        "birthTime": "",
+        "deathDate": "",
+        "twinType": "",
+        "birthOrder": ""
+      }
     },
     {
       "id": "conyuge-hija",
       "x": -300,
       "y": 170,
-      "data": { "firstName": "Daniel", "lastName": "Vega", "gender": "male", "birthDate": "", "birthTime": "", "deathDate": "", "ascendantSign": "", "sunSign": "", "moonSign": "", "twinType": "", "birthOrder": "", "birthLatitude": "", "birthLongitude": "", "additionalInfo": "Cónyuge de Sofía" }
+      "data": {
+        "firstName": "Daniel",
+        "lastName": "Vega",
+        "gender": "male",
+        "additionalInfo": "Cónyuge de Sofía",
+        "birthDate": "",
+        "birthTime": "",
+        "deathDate": "",
+        "twinType": "",
+        "birthOrder": ""
+      }
     },
     {
       "id": "nieta",
       "x": -230,
       "y": 330,
-      "data": { "firstName": "Valeria", "lastName": "Vega", "gender": "female", "birthDate": "", "birthTime": "", "deathDate": "", "ascendantSign": "", "sunSign": "", "moonSign": "", "twinType": "", "birthOrder": "", "birthLatitude": "", "birthLongitude": "", "additionalInfo": "Nieta de Carlos y Ana" }
+      "data": {
+        "firstName": "Valeria",
+        "lastName": "Vega",
+        "gender": "female",
+        "additionalInfo": "Nieta de Carlos y Ana",
+        "birthDate": "",
+        "birthTime": "",
+        "deathDate": "",
+        "twinType": "",
+        "birthOrder": ""
+      }
     },
     {
       "id": "hijo-fuera-matrimonio",
       "x": 140,
       "y": 120,
-      "data": { "firstName": "Tomás", "lastName": "Ruiz", "gender": "male", "birthDate": "", "birthTime": "", "deathDate": "", "ascendantSign": "", "sunSign": "", "moonSign": "", "twinType": "", "birthOrder": "", "birthLatitude": "", "birthLongitude": "", "additionalInfo": "Hijo de Carlos fuera del matrimonio con Ana" }
+      "data": {
+        "firstName": "Tomás",
+        "lastName": "Ruiz",
+        "gender": "male",
+        "additionalInfo": "Hijo de Carlos fuera del matrimonio con Ana",
+        "birthDate": "",
+        "birthTime": "",
+        "deathDate": "",
+        "twinType": "",
+        "birthOrder": ""
+      }
     }
   ],
   "edges": [
-    { "id": "e1", "from": "abuelo-paterno", "to": "abuela-paterna", "type": "partner", "label": "Casado/a", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e2", "from": "abuelo-paterno", "to": "padre", "type": "parent", "label": "Biológico", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e3", "from": "abuela-paterna", "to": "padre", "type": "parent", "label": "Biológico", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e4", "from": "padre", "to": "madre", "type": "partner", "label": "Casado/a", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e5", "from": "padre", "to": "hija-1", "type": "parent", "label": "Biológico", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e6", "from": "madre", "to": "hija-1", "type": "parent", "label": "Biológico", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e7", "from": "padre", "to": "hijo-2", "type": "parent", "label": "Biológico", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e8", "from": "madre", "to": "hijo-2", "type": "parent", "label": "Biológico", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e9", "from": "hija-1", "to": "conyuge-hija", "type": "partner", "label": "Casado/a", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e10", "from": "hija-1", "to": "nieta", "type": "parent", "label": "Biológico", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e11", "from": "conyuge-hija", "to": "nieta", "type": "parent", "label": "Biológico", "customLinkId": "", "styleMode": "", "styleColor": "" },
-    { "id": "e12", "from": "padre", "to": "hijo-fuera-matrimonio", "type": "parent", "label": "Biológico", "customLinkId": "", "styleMode": "", "styleColor": "" }
+    {
+      "id": "e1",
+      "from": "abuelo-paterno",
+      "to": "abuela-paterna",
+      "type": "partner",
+      "label": "Casado/a"
+    },
+    {
+      "id": "e2",
+      "from": "abuelo-paterno",
+      "to": "padre",
+      "type": "parent",
+      "label": "Biológico"
+    },
+    {
+      "id": "e3",
+      "from": "abuela-paterna",
+      "to": "padre",
+      "type": "parent",
+      "label": "Biológico"
+    },
+    {
+      "id": "e4",
+      "from": "padre",
+      "to": "madre",
+      "type": "partner",
+      "label": "Casado/a"
+    },
+    {
+      "id": "e5",
+      "from": "padre",
+      "to": "hija-1",
+      "type": "parent",
+      "label": "Biológico"
+    },
+    {
+      "id": "e6",
+      "from": "madre",
+      "to": "hija-1",
+      "type": "parent",
+      "label": "Biológico"
+    },
+    {
+      "id": "e7",
+      "from": "padre",
+      "to": "hijo-2",
+      "type": "parent",
+      "label": "Biológico"
+    },
+    {
+      "id": "e8",
+      "from": "madre",
+      "to": "hijo-2",
+      "type": "parent",
+      "label": "Biológico"
+    },
+    {
+      "id": "e9",
+      "from": "hija-1",
+      "to": "conyuge-hija",
+      "type": "partner",
+      "label": "Casado/a"
+    },
+    {
+      "id": "e10",
+      "from": "hija-1",
+      "to": "nieta",
+      "type": "parent",
+      "label": "Biológico"
+    },
+    {
+      "id": "e11",
+      "from": "conyuge-hija",
+      "to": "nieta",
+      "type": "parent",
+      "label": "Biológico"
+    },
+    {
+      "id": "e12",
+      "from": "padre",
+      "to": "hijo-fuera-matrimonio",
+      "type": "parent",
+      "label": "Biológico"
+    }
   ],
   "customLinkTypes": [],
   "familyGroups": [
@@ -78,7 +240,15 @@
       "label": "Familia de Carlos y Ana",
       "emoji": "🏡",
       "color": "#F97316",
-      "nodeIds": ["padre", "madre", "hija-1", "hijo-2", "conyuge-hija", "nieta", "hijo-fuera-matrimonio"],
+      "nodeIds": [
+        "padre",
+        "madre",
+        "hija-1",
+        "hijo-2",
+        "conyuge-hija",
+        "nieta",
+        "hijo-fuera-matrimonio"
+      ],
       "collapsed": false
     },
     {
@@ -86,7 +256,11 @@
       "label": "Abuelos paternos",
       "emoji": "💞",
       "color": "#7C3AED",
-      "nodeIds": ["abuelo-paterno", "abuela-paterna", "padre"],
+      "nodeIds": [
+        "abuelo-paterno",
+        "abuela-paterna",
+        "padre"
+      ],
       "collapsed": false
     }
   ]

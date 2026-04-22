@@ -1,5 +1,6 @@
 import { User } from 'lucide-react';
 import { COLORS } from '../../../domain/config/constants';
+import WheelInputModalSelector from '../common/WheelInputModalSelector';
 
 export default function PartnerSelectionModal({ selection, nodes, onClose, onSelect }) {
   if (!selection) return null;
@@ -9,6 +10,18 @@ export default function PartnerSelectionModal({ selection, nodes, onClose, onSel
   const mode = selection.mode || 'child';
   const optionIds = Array.isArray(selection.options) ? selection.options : selection.partners || [];
   const preferredOptionIds = new Set(selection.preferredOptionIds || selection.partners || []);
+  const suggestedOptionIds = optionIds.filter((id) => preferredOptionIds.has(id));
+  const otherOptionIds = optionIds.filter((id) => !preferredOptionIds.has(id));
+  const useWheelForOtherOptions = mode === 'child' && otherOptionIds.length > 3;
+
+  const wheelOptions = otherOptionIds
+    .map((id) => {
+      const node = nodes.find(n => n.id === id);
+      if (!node) return null;
+      const label = `${node.data.firstName || ''} ${node.data.lastName || ''}`.trim() || 'Sin nombre';
+      return { value: id, label };
+    })
+    .filter(Boolean);
 
   const contentByMode = {
     child: {
@@ -45,7 +58,8 @@ export default function PartnerSelectionModal({ selection, nodes, onClose, onSel
           {optionIds.length > 0 && (
             <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">{ui.existingLabel}</p>
           )}
-          {optionIds.map((pId) => {
+
+          {suggestedOptionIds.map((pId) => {
             const p = nodes.find(n => n.id === pId);
             if (!p) return null;
             return (
@@ -59,13 +73,46 @@ export default function PartnerSelectionModal({ selection, nodes, onClose, onSel
                 </div>
                 <div className="flex flex-col">
                   <span className="font-bold text-gray-700">{p.data.firstName} {p.data.lastName}</span>
-                  {preferredOptionIds.has(pId) && (
-                    <span className="text-[10px] font-semibold text-orange-600">Sugerido</span>
-                  )}
+                  <span className="text-[10px] font-semibold text-orange-600">Sugerido</span>
                 </div>
               </button>
             );
           })}
+
+          {useWheelForOtherOptions ? (
+            <div className="rounded-2xl border-2 border-orange-100 bg-orange-50/40 p-3">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-orange-600 mb-2">Más opciones</p>
+              <WheelInputModalSelector
+                value=""
+                onChange={(nextId) => {
+                  if (nextId) onSelect(nextId);
+                }}
+                options={wheelOptions}
+                placeholder="Seleccionar persona"
+                title="Seleccionar posible co-progenitor"
+                icon={User}
+              />
+            </div>
+          ) : (
+            otherOptionIds.map((pId) => {
+              const p = nodes.find(n => n.id === pId);
+              if (!p) return null;
+              return (
+                <button
+                  key={pId}
+                  className="w-full p-4 text-left border-2 border-orange-100 rounded-2xl hover:bg-orange-50 hover:border-orange-300 transition-colors flex items-center gap-3 shadow-sm"
+                  onClick={() => onSelect(pId)}
+                >
+                  <div className={`p-2 rounded-full ${COLORS[p.data.gender]?.bg || COLORS.unknown.bg}`}>
+                    <User size={20} className={COLORS[p.data.gender]?.icon || COLORS.unknown.icon} />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-bold text-gray-700">{p.data.firstName} {p.data.lastName}</span>
+                  </div>
+                </button>
+              );
+            })
+          )}
 
           <div className="relative py-4 flex items-center">
             <div className="flex-grow border-t border-gray-200"></div>

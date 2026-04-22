@@ -127,7 +127,10 @@ export default function CanvasHUD({
 
               {viewModeOptions.length > 0 && (
                 <div className="px-2 pb-2">
-                  <div className="grid grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-white p-1">
+                  <div
+                    className="grid gap-1 rounded-xl border border-gray-200 bg-white p-1"
+                    style={{ gridTemplateColumns: `repeat(${Math.min(3, viewModeOptions.length)}, minmax(0, 1fr))` }}
+                  >
                     {viewModeOptions.map((mode) => (
                       <button
                         key={mode.value}

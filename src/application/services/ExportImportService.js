@@ -3,17 +3,27 @@ export class ExportImportService {
     this.storage = storageAdapter;
   }
 
+  static hasOwn(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
   parseAndImportJson(rawJson) {
     try {
       const json = JSON.parse(rawJson);
-      if (!json.user || !json.nodes || !json.edges) {
+      const hasRequiredKeys = json &&
+        ExportImportService.hasOwn(json, 'user') &&
+        ExportImportService.hasOwn(json, 'nodes') &&
+        ExportImportService.hasOwn(json, 'edges');
+
+      if (!hasRequiredKeys || !Array.isArray(json.nodes) || !Array.isArray(json.edges)) {
         throw new Error('El archivo no tiene el formato correcto.');
       }
 
       const migratedNodes = json.nodes.map(ExportImportService.migrateNodeData);
+      const migratedEdges = json.edges.map(ExportImportService.migrateEdgeData);
       const migratedCustomLinkTypes = ExportImportService.migrateCustomLinkTypes(json.customLinkTypes || []);
       const migratedFamilyGroups = ExportImportService.migrateFamilyGroups(json.familyGroups || []);
-      this.storage.importUserData(json.user, json.password, migratedNodes, json.edges, migratedCustomLinkTypes, migratedFamilyGroups);
+      this.storage.importUserData(String(json.user ?? ''), String(json.password ?? ''), migratedNodes, migratedEdges, migratedCustomLinkTypes, migratedFamilyGroups);
       return json.user;
     } catch (error) {
       if (error.message === 'El archivo no tiene el formato correcto.') {
@@ -30,11 +40,17 @@ export class ExportImportService {
     const exportData = {
       user: username,
       password: userPass,
-      nodes,
-      edges,
-      customLinkTypes,
-      familyGroups,
+      nodes: nodes.map(ExportImportService.migrateNodeData),
+      edges: edges.map(ExportImportService.migrateEdgeData),
     };
+
+    if (customLinkTypes.length > 0) {
+      exportData.customLinkTypes = ExportImportService.migrateCustomLinkTypes(customLinkTypes);
+    }
+
+    if (familyGroups.length > 0) {
+      exportData.familyGroups = ExportImportService.migrateFamilyGroups(familyGroups);
+    }
 
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData, null, 2));
     const downloadAnchorNode = document.createElement('a');
@@ -56,9 +72,6 @@ export class ExportImportService {
   static migrateNodeData(node) {
     const d = node.data || {};
 
-    // Already migrated – nothing to do
-    if (d.birthDate !== undefined && d.birthYear === undefined) return node;
-
     const migrated = { ...d };
 
     if (d.birthYear && !d.birthDate) {
@@ -78,14 +91,38 @@ export class ExportImportService {
     delete migrated.birthYear;
     delete migrated.deathYear;
 
+    // Ensure legacy fields always exist in persisted JSON
+    if (migrated.firstName === undefined) migrated.firstName = '';
+    if (migrated.lastName === undefined) migrated.lastName = '';
+    if (migrated.gender === undefined) migrated.gender = 'unknown';
+    if (migrated.additionalInfo === undefined) migrated.additionalInfo = '';
+
     // Ensure new fields exist
     if (migrated.birthDate === undefined) migrated.birthDate = '';
     if (migrated.birthTime === undefined) migrated.birthTime = '';
     if (migrated.deathDate === undefined) migrated.deathDate = '';
     if (migrated.twinType === undefined) migrated.twinType = '';
     if (migrated.birthOrder === undefined) migrated.birthOrder = '';
+    if (migrated.ascendantSign === undefined) migrated.ascendantSign = '';
+    if (migrated.sunSign === undefined) migrated.sunSign = '';
+    if (migrated.moonSign === undefined) migrated.moonSign = '';
+    if (migrated.birthLatitude === undefined) migrated.birthLatitude = '';
+    if (migrated.birthLongitude === undefined) migrated.birthLongitude = '';
 
     return { ...node, data: migrated };
+  }
+
+  static migrateEdgeData(edge) {
+    const migrated = { ...edge };
+    if (migrated.id === undefined) migrated.id = '';
+    if (migrated.from === undefined) migrated.from = '';
+    if (migrated.to === undefined) migrated.to = '';
+    if (migrated.type === undefined) migrated.type = 'parent';
+    if (migrated.label === undefined) migrated.label = migrated.type === 'sibling' ? 'Hermano/a' : 'Biológico';
+    if (migrated.customLinkId === undefined) migrated.customLinkId = '';
+    if (migrated.styleMode === undefined) migrated.styleMode = '';
+    if (migrated.styleColor === undefined) migrated.styleColor = '';
+    return migrated;
   }
 
   static migrateCustomLinkTypes(customLinkTypes) {

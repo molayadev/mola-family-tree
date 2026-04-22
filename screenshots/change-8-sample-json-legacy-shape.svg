@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <rect width="1600" height="900" fill="#111827"/>
+  <rect x="50" y="50" width="1500" height="800" rx="16" fill="#0b1220" stroke="#334155" stroke-width="2"/>
+  <text x="90" y="115" font-family="monospace" font-size="34" fill="#f8fafc">Actualización de public/family-groups-sample.json</text>
+  <text x="90" y="160" font-family="monospace" font-size="22" fill="#93c5fd">Nodos y edges alineados al formato histórico</text>
+
+  <rect x="90" y="200" width="680" height="580" rx="12" fill="#020617" stroke="#475569"/>
+  <text x="120" y="240" font-family="monospace" font-size="20" fill="#ef4444">ANTES (más verboso)</text>
+  <text x="120" y="280" font-family="monospace" font-size="18" fill="#e2e8f0">data: { firstName, lastName, gender,</text>
+  <text x="120" y="308" font-family="monospace" font-size="18" fill="#e2e8f0">birthDate, birthTime, deathDate,</text>
+  <text x="120" y="336" font-family="monospace" font-size="18" fill="#e2e8f0">ascendantSign, sunSign, moonSign,</text>
+  <text x="120" y="364" font-family="monospace" font-size="18" fill="#e2e8f0">birthLatitude, birthLongitude, ... }</text>
+  <text x="120" y="420" font-family="monospace" font-size="18" fill="#e2e8f0">edge: { id, from, to, type, label,</text>
+  <text x="120" y="448" font-family="monospace" font-size="18" fill="#e2e8f0">customLinkId, styleMode, styleColor }</text>
+
+  <rect x="830" y="200" width="680" height="580" rx="12" fill="#020617" stroke="#475569"/>
+  <text x="860" y="240" font-family="monospace" font-size="20" fill="#22c55e">DESPUÉS (legacy-friendly)</text>
+  <text x="860" y="280" font-family="monospace" font-size="18" fill="#e2e8f0">data: { firstName, lastName, gender,</text>
+  <text x="860" y="308" font-family="monospace" font-size="18" fill="#e2e8f0">additionalInfo, birthDate, birthTime,</text>
+  <text x="860" y="336" font-family="monospace" font-size="18" fill="#e2e8f0">deathDate, twinType, birthOrder }</text>
+  <text x="860" y="420" font-family="monospace" font-size="18" fill="#e2e8f0">edge: { id, from, to, type, label }</text>
+  <text x="860" y="476" font-family="monospace" font-size="18" fill="#f59e0b">customLinkTypes / familyGroups</text>
+  <text x="860" y="504" font-family="monospace" font-size="18" fill="#e2e8f0">se conservan como extensiones opcionales</text>
+
+  <text x="90" y="835" font-family="monospace" font-size="18" fill="#94a3b8">Captura documental del ajuste solicitado en el JSON de ejemplo.</text>
+</svg>

@@ -21,6 +21,9 @@ const LINEAGE_VIEW_MODES = [
   { value: 'lineage', label: 'Linaje' },
   { value: 'ancestors', label: 'Ancestros' },
   { value: 'descendants', label: 'Descendencia' },
+  { value: 'relatives', label: 'Familia ampliada' },
+  { value: 'maternal', label: 'Rama materna' },
+  { value: 'paternal', label: 'Rama paterna' },
 ];
 const FIT_TO_SCREEN_DELAY = 100;
 
@@ -172,6 +175,46 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
     (partnersByNode.get(nodeId) || []).forEach((partnerId) => addNode(partnerId));
   };
 
+  const getUniqueParents = (childId) => [...new Set(parentsByChild.get(childId) || [])]
+    .filter(id => nodeMap.has(id));
+
+  const chooseParentByMode = (parents, childId, mode) => {
+    if (!Array.isArray(parents) || parents.length === 0) return null;
+
+    const explicitChoice = parentChoiceByChildId?.[childId] || null;
+    if (explicitChoice && parents.includes(explicitChoice)) return explicitChoice;
+
+    if (mode === 'maternal') {
+      const mother = parents.find((id) => nodeMap.get(id)?.data?.gender === 'female');
+      if (mother) return mother;
+    }
+
+    if (mode === 'paternal') {
+      const father = parents.find((id) => nodeMap.get(id)?.data?.gender === 'male');
+      if (father) return father;
+    }
+
+    return chooseParentWithMotherPriority(parents, nodeMap, explicitChoice);
+  };
+
+  const getAncestorPath = (startNodeId, mode) => {
+    const path = [];
+    const visited = new Set();
+    let currentChildId = startNodeId;
+
+    while (currentChildId && !visited.has(currentChildId)) {
+      visited.add(currentChildId);
+      const parents = getUniqueParents(currentChildId);
+      if (parents.length === 0) break;
+      const selectedParent = chooseParentByMode(parents, currentChildId, mode);
+      if (!selectedParent) break;
+      path.push(selectedParent);
+      currentChildId = selectedParent;
+    }
+
+    return path;
+  };
+
   const addDescendants = (nodeId) => {
     const queue = [nodeId];
     const visited = new Set();
@@ -186,6 +229,21 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
         queue.push(childId);
       });
     }
+  };
+
+  const addSiblingsWithFamilies = (nodeId) => {
+    const siblings = new Set();
+    getUniqueParents(nodeId).forEach((parentId) => {
+      (childrenByParent.get(parentId) || []).forEach((childId) => {
+        if (childId !== nodeId) siblings.add(childId);
+      });
+    });
+
+    siblings.forEach((siblingId) => {
+      addNode(siblingId);
+      addNodePartners(siblingId);
+      addDescendants(siblingId);
+    });
   };
 
   if (!resolvedFocusNodeId) {
@@ -214,28 +272,37 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
   addNode(resolvedFocusNodeId);
   addNodePartners(resolvedFocusNodeId);
 
-  if (viewMode === 'descendants' || viewMode === 'lineage') {
+  if (viewMode === 'descendants' || viewMode === 'lineage' || viewMode === 'relatives') {
     addDescendants(resolvedFocusNodeId);
   }
 
   let activeParentId = null;
-  if (viewMode === 'ancestors' || viewMode === 'lineage') {
-    let currentChildId = resolvedFocusNodeId;
-    const visited = new Set();
-    while (currentChildId && !visited.has(currentChildId)) {
-      visited.add(currentChildId);
-      const parents = [...new Set(parentsByChild.get(currentChildId) || [])].filter(id => nodeMap.has(id));
-      if (parents.length === 0) break;
-      const preferredParentId = chooseParentWithMotherPriority(
-        parents,
-        nodeMap,
-        parentChoiceByChildId?.[currentChildId] || null,
-      );
-      if (!preferredParentId) break;
-      if (currentChildId === resolvedFocusNodeId) activeParentId = preferredParentId;
-      addNode(preferredParentId);
-      addNodePartners(preferredParentId);
-      currentChildId = preferredParentId;
+  if (viewMode === 'ancestors' || viewMode === 'lineage' || viewMode === 'relatives') {
+    const ancestorPath = getAncestorPath(resolvedFocusNodeId, viewMode);
+    activeParentId = ancestorPath[0] || null;
+    ancestorPath.forEach((ancestorId) => {
+      addNode(ancestorId);
+      addNodePartners(ancestorId);
+    });
+
+    if (viewMode === 'relatives') {
+      addSiblingsWithFamilies(resolvedFocusNodeId);
+      ancestorPath.forEach((ancestorId) => addSiblingsWithFamilies(ancestorId));
+    }
+  } else if (viewMode === 'maternal' || viewMode === 'paternal') {
+    const rootParent = chooseParentByMode(getUniqueParents(resolvedFocusNodeId), resolvedFocusNodeId, viewMode);
+    activeParentId = rootParent || null;
+
+    if (rootParent) {
+      const branchAncestors = [rootParent, ...getAncestorPath(rootParent, viewMode)];
+      branchAncestors.forEach((ancestorId) => {
+        addNode(ancestorId);
+        addNodePartners(ancestorId);
+        addDescendants(ancestorId);
+      });
+    } else {
+      // No parent of requested branch exists: keep current family context visible.
+      addDescendants(resolvedFocusNodeId);
     }
   } else {
     activeParentId = chooseParentWithMotherPriority(

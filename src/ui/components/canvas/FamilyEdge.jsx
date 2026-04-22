@@ -23,10 +23,10 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
   let strokeDash;
 
   if (isPartner) {
-    // Partner lines: straight horizontal-ish, solid pink or dashed grey
+    // Partner lines: straight horizontal-ish, always pink; broken relations are dashed.
     d = `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
-    strokeColor = isBroken ? '#9CA3AF' : '#F9A8D4';
-    strokeWidth = isBroken ? 1 : 1.5;
+    strokeColor = '#F9A8D4';
+    strokeWidth = 1.5;
     strokeDash = isBroken ? '6,4' : '0';
   } else if (edge.type === EDGE_TYPES.CUSTOM) {
     d = `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
