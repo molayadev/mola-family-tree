@@ -13,6 +13,7 @@ import PartnerSelectionModal from '../modals/PartnerSelectionModal';
 import LinkTypeSelectionModal from '../modals/LinkTypeSelectionModal';
 import LinkTypesManagerModal from '../modals/LinkTypesManagerModal';
 import FamilyGroupsModal from '../modals/FamilyGroupsModal';
+import Input from '../common/Input';
 
 const GROUP_EMOJIS = ['👨‍👩‍👧', '👨‍👩‍👧‍👦', '👩‍👩‍👦', '👨‍👨‍👧', '🏡', '💞', '🌳', '💫', '🫶', '✨'];
 const GROUP_COLORS = ['#F97316', '#7C3AED', '#0891B2', '#16A34A', '#DC2626', '#EA580C', '#4F46E5', '#D946EF'];
@@ -131,6 +132,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [isolatedGroupId, setIsolatedGroupId] = useState(null);
   const [highlightedGroupId, setHighlightedGroupId] = useState(null);
   const [groupDraft, setGroupDraft] = useState(null);
+  const [collapsedGroupMenu, setCollapsedGroupMenu] = useState(null); // { groupId, x, y }
 
   // Linking mode state
   const [linkingMode, setLinkingMode] = useState(null); // { sourceId } or null
@@ -145,8 +147,17 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     [nodes, normalizedFamilyGroups, isolatedGroupId],
   );
 
-  const visibleNodes = useMemo(() => nodes.filter(n => !hiddenNodeIds.has(n.id)), [nodes, hiddenNodeIds]);
+  const effectiveHiddenNodeIds = useMemo(
+    () => (groupDraft ? new Set() : hiddenNodeIds),
+    [groupDraft, hiddenNodeIds],
+  );
+
+  const visibleNodes = useMemo(
+    () => nodes.filter(n => !effectiveHiddenNodeIds.has(n.id)),
+    [nodes, effectiveHiddenNodeIds],
+  );
   const collapsedGroupByNodeId = useMemo(() => {
+    if (groupDraft) return new Map();
     const map = new Map();
     normalizedFamilyGroups
       .filter(group => group.collapsed)
@@ -154,9 +165,10 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         group.nodeIds.forEach((nodeId) => map.set(nodeId, group.id));
       });
     return map;
-  }, [normalizedFamilyGroups]);
+  }, [normalizedFamilyGroups, groupDraft]);
 
   const collapsedGroupBubbleMap = useMemo(() => {
+    if (groupDraft) return new Map();
     const nodeMap = new Map(nodes.map(node => [node.id, node]));
     const bubbleMap = new Map();
 
@@ -181,7 +193,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       });
 
     return bubbleMap;
-  }, [nodes, normalizedFamilyGroups, isolatedGroupId]);
+  }, [nodes, normalizedFamilyGroups, isolatedGroupId, groupDraft]);
 
   const renderedEdges = useMemo(() => {
     const nodeMap = new Map(nodes.map(node => [node.id, node]));
@@ -189,8 +201,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     const output = [];
 
     edges.forEach((edge) => {
-      const fromHidden = hiddenNodeIds.has(edge.from);
-      const toHidden = hiddenNodeIds.has(edge.to);
+      const fromHidden = effectiveHiddenNodeIds.has(edge.from);
+      const toHidden = effectiveHiddenNodeIds.has(edge.to);
       const fromCollapsedGroup = collapsedGroupByNodeId.get(edge.from);
       const toCollapsedGroup = collapsedGroupByNodeId.get(edge.to);
 
@@ -230,7 +242,18 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     });
 
     return output;
-  }, [nodes, edges, hiddenNodeIds, collapsedGroupByNodeId, collapsedGroupBubbleMap]);
+  }, [nodes, edges, effectiveHiddenNodeIds, collapsedGroupByNodeId, collapsedGroupBubbleMap]);
+
+  const nodeGroupColorById = useMemo(() => {
+    const map = new Map();
+    normalizedFamilyGroups.forEach((group) => {
+      const groupColor = normalizeGroupColor(group.color);
+      group.nodeIds.forEach((nodeId) => {
+        if (!map.has(nodeId)) map.set(nodeId, groupColor);
+      });
+    });
+    return map;
+  }, [normalizedFamilyGroups]);
 
   const highlightedGroupNodeIds = useMemo(() => {
     const group = normalizedFamilyGroups.find(item => item.id === highlightedGroupId);
@@ -246,6 +269,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     transform,
     setTransform,
     canvasRef,
+    stateRef,
     fitToScreen,
     handleWheel,
     handleTouchStart,
@@ -308,6 +332,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, []);
 
   const openActionsModal = useCallback((nodeId, initialTab = null, expandedEdgeId = null) => {
+    setCollapsedGroupMenu(null);
     setActionsModal({ isOpen: true, nodeId, initialTab, expandedEdgeId });
     setActionsModalKey(k => k + 1);
   }, []);
@@ -332,12 +357,11 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [nodes, isolatedGroupId, fitToScreen]);
 
   const confirmAddChild = useCallback((sourceId, partnerId) => {
-    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const result = treeService.addChild(nodes, edges, sourceId, partnerId);
     saveAndUpdate(result.nodes, result.edges);
     setPartnerSelection(null);
     setTimeout(() => fitToScreen(result.nodes), 100);
-  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, undoService]);
+  }, [nodes, edges, treeService, saveAndUpdate, fitToScreen]);
 
   const enterLinkingMode = useCallback((sourceId) => {
     closeActionsModal();
@@ -370,13 +394,11 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       return;
     } else if (action === 'add_spouse') {
       if (treeService.hasSpouse(edges, nodeId)) return;
-      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       const result = treeService.addSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
       setTimeout(() => fitToScreen(result.nodes), 100);
     } else if (action === 'add_ex_spouse') {
-      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       const result = treeService.addExSpouse(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
@@ -393,25 +415,22 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [actionsModal.nodeId, nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, confirmAddChild, closeActionsModal, enterLinkingMode, undoService]);
 
   const handleUpdateNode = useCallback((nodeId, newData) => {
-    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const updatedNodes = treeService.updateNode(nodes, nodeId, newData);
     saveAndUpdate(updatedNodes, edges);
     closeActionsModal();
-  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, closeActionsModal, undoService]);
+  }, [nodes, edges, treeService, saveAndUpdate, closeActionsModal]);
 
   const handleUpdateLink = useCallback((edgeId, updates) => {
-    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const result = treeService.updateLink(nodes, edges, edgeId, updates, actionsModal.nodeId);
     saveAndUpdate(result.nodes, result.edges);
-  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, actionsModal.nodeId, saveAndUpdate, undoService]);
+  }, [nodes, edges, treeService, actionsModal.nodeId, saveAndUpdate]);
 
   const handleDeleteLink = useCallback((edgeId) => {
     if (window.confirm('¿Seguro que deseas eliminar este vínculo? (La persona seguirá existiendo en el árbol)')) {
-      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       const newEdges = treeService.deleteLink(edges, edgeId);
       saveAndUpdate(nodes, newEdges);
     }
-  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, undoService]);
+  }, [nodes, edges, treeService, saveAndUpdate]);
 
   const handleExport = useCallback(() => {
     exportService.exportTree(username, nodes, edges, customLinkTypes, normalizedFamilyGroups);
@@ -469,13 +488,13 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [isolatedGroupId, normalizedFamilyGroups, nodes, edges, customLinkTypes, saveAndUpdate, focusVisibleNodes]);
 
   const handleToggleCollapseGroup = useCallback((groupId) => {
-    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const nextGroups = normalizedFamilyGroups.map(group => (
       group.id === groupId ? { ...group, collapsed: !group.collapsed } : group
     ));
     saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
     focusVisibleNodes(nextGroups);
-  }, [undoService, nodes, edges, customLinkTypes, normalizedFamilyGroups, saveAndUpdate, focusVisibleNodes]);
+    setCollapsedGroupMenu(null);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, saveAndUpdate, focusVisibleNodes]);
 
   const handleExpandAllGroups = useCallback(() => {
     const hadCollapsed = normalizedFamilyGroups.some(group => group.collapsed);
@@ -483,13 +502,12 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
     const nextGroups = normalizedFamilyGroups.map(group => ({ ...group, collapsed: false }));
     if (hadCollapsed) {
-      undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
       saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
     }
 
     setHighlightedGroupId(null);
     focusVisibleNodes(nextGroups, null);
-  }, [normalizedFamilyGroups, undoService, nodes, edges, customLinkTypes, saveAndUpdate, focusVisibleNodes]);
+  }, [normalizedFamilyGroups, nodes, edges, customLinkTypes, saveAndUpdate, focusVisibleNodes]);
 
   const handleStartCreateGroup = useCallback(() => {
     setGroupDraft({
@@ -500,6 +518,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       color: randomGroupColor(),
       nodeIds: [],
     });
+    setFamilyGroupsModalOpen(false);
+    setCollapsedGroupMenu(null);
   }, []);
 
   const handleStartEditGroup = useCallback((groupId) => {
@@ -514,13 +534,13 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       color: normalizeGroupColor(existing.color),
       nodeIds: [...existing.nodeIds],
     });
+    setFamilyGroupsModalOpen(false);
+    setCollapsedGroupMenu(null);
   }, [normalizedFamilyGroups]);
 
   const handleSaveGroupDraft = useCallback(() => {
     if (!groupDraft) return;
     if (!groupDraft.label.trim() || groupDraft.nodeIds.length === 0) return;
-
-    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
 
     let nextGroups;
     let savedGroupId;
@@ -559,12 +579,11 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     setHighlightedGroupId(savedGroupId);
     setGroupDraft(null);
     focusVisibleNodes(nextGroups);
-  }, [groupDraft, undoService, nodes, edges, customLinkTypes, normalizedFamilyGroups, saveAndUpdate, focusVisibleNodes]);
+  }, [groupDraft, nodes, edges, customLinkTypes, normalizedFamilyGroups, saveAndUpdate, focusVisibleNodes]);
 
   const handleDeleteGroup = useCallback((groupId) => {
     if (!window.confirm('¿Seguro que deseas eliminar este grupo familiar?')) return;
 
-    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const nextGroups = normalizedFamilyGroups.filter(group => group.id !== groupId);
 
     if (isolatedGroupId === groupId) setIsolatedGroupId(null);
@@ -572,11 +591,20 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
     saveAndUpdate(nodes, edges, customLinkTypes, nextGroups);
     focusVisibleNodes(nextGroups, isolatedGroupId === groupId ? null : isolatedGroupId);
-  }, [undoService, nodes, edges, customLinkTypes, normalizedFamilyGroups, isolatedGroupId, highlightedGroupId, saveAndUpdate, focusVisibleNodes]);
+    setCollapsedGroupMenu(null);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, isolatedGroupId, highlightedGroupId, saveAndUpdate, focusVisibleNodes]);
 
   const handleIdentifyGroupMembers = useCallback((groupId) => {
     setHighlightedGroupId(groupId);
   }, []);
+
+  const handleCancelGroupDraft = useCallback(() => {
+    setGroupDraft(null);
+  }, []);
+
+  const handleStartEditMembers = useCallback((groupId) => {
+    handleStartEditGroup(groupId);
+  }, [handleStartEditGroup]);
 
   // ---- Linking mode ----
   const cancelLinkingMode = useCallback(() => {
@@ -592,12 +620,11 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
   const handleLinkTypeChosen = useCallback((linkType) => {
     if (!linkingMode || !linkTarget) return;
-    undoService.saveState(nodes, edges, customLinkTypes, normalizedFamilyGroups);
     const newEdges = treeService.linkNodes(edges, linkingMode.sourceId, linkTarget, linkType, undefined, customLinkTypes);
     saveAndUpdate(nodes, newEdges);
     setLinkingMode(null);
     setLinkTarget(null);
-  }, [linkingMode, linkTarget, edges, nodes, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, undoService]);
+  }, [linkingMode, linkTarget, edges, nodes, customLinkTypes, treeService, saveAndUpdate]);
 
   const handleSaveCustomLinkTypes = useCallback((nextCustomLinkTypes) => {
     const syncedEdges = treeService.syncCustomLinkEdges(edges, nextCustomLinkTypes);
@@ -606,6 +633,12 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [treeService, edges, nodes, saveAndUpdate]);
 
   const handleNodePointerDownWrapped = useCallback((e, nodeId) => {
+    const isSyntheticMouseAfterTouch = (
+      e.type === 'mousedown'
+      && Date.now() - stateRef.current.lastTouchEndTime < 500
+    );
+    if (isSyntheticMouseAfterTouch) return;
+
     if (groupDraft) {
       e.stopPropagation();
       e.preventDefault();
@@ -628,7 +661,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     }
 
     handleNodePointerDown(e, nodeId, nodes);
-  }, [groupDraft, linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes]);
+  }, [groupDraft, linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes, stateRef]);
 
   const handleSelectNode = useCallback((nodeId) => {
     openActionsModal(nodeId);
@@ -670,11 +703,26 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     return treeService.hasSpouse(edges, actionsModal.nodeId);
   }, [actionsModal.nodeId, edges, treeService]);
 
+  const selectedCollapsedGroup = useMemo(
+    () => normalizedFamilyGroups.find(group => group.id === collapsedGroupMenu?.groupId) || null,
+    [normalizedFamilyGroups, collapsedGroupMenu],
+  );
+
+  const collapsedGroupMenuPosition = useMemo(() => {
+    if (!collapsedGroupMenu) return null;
+    return {
+      left: transform.x + (collapsedGroupMenu.x * transform.k),
+      top: transform.y + (collapsedGroupMenu.y * transform.k),
+    };
+  }, [collapsedGroupMenu, transform]);
+
   return (
     <div
       className="h-screen w-screen bg-[#F3F0EB] overflow-hidden relative font-sans text-gray-700 selection:bg-orange-200 touch-none"
       ref={canvasRef}
       onMouseDown={(e) => {
+        if (e.target instanceof Element && e.target.closest('[data-collapsed-group-menu="true"]')) return;
+        setCollapsedGroupMenu(null);
         handleMouseDown(e, transform);
       }}
       onMouseMove={(e) => handleMouseMove(e, nodes, (n) => saveAndUpdateWithUndo(n, edges), transform)}
@@ -682,6 +730,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       onMouseLeave={handleMouseUpCallback}
       onWheel={handleWheel}
       onTouchStart={(e) => {
+        if (e.target instanceof Element && e.target.closest('[data-collapsed-group-menu="true"]')) return;
+        setCollapsedGroupMenu(null);
         handleTouchStart(e, transform);
       }}
       onTouchMove={(e) => handleTouchMove(e, nodes, (n) => saveAndUpdateWithUndo(n, edges), transform)}
@@ -761,14 +811,9 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         onExpandAll={handleExpandAllGroups}
         onStartCreate={handleStartCreateGroup}
         onStartEdit={handleStartEditGroup}
+        onStartEditMembers={handleStartEditMembers}
         onDelete={handleDeleteGroup}
         onIdentifyMembers={handleIdentifyGroupMembers}
-        draft={groupDraft}
-        onDraftLabelChange={(label) => setGroupDraft(prev => (prev ? { ...prev, label } : prev))}
-        onDraftColorChange={(color) => setGroupDraft(prev => (prev ? { ...prev, color } : prev))}
-        onDraftEmojiRandom={() => setGroupDraft(prev => (prev ? { ...prev, emoji: randomGroupEmoji() } : prev))}
-        onSaveDraft={handleSaveGroupDraft}
-        onCancelDraft={() => setGroupDraft(null)}
       />
 
       {/* Linking mode banner */}
@@ -789,9 +834,107 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       )}
 
       {groupDraft && (
-        <div className="absolute top-16 md:top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="bg-orange-600 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3">
-            <span className="text-sm font-bold">Selecciona nodos del grupo. Toca nuevamente para deseleccionar.</span>
+        <div className="absolute top-16 md:top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="w-[min(90vw,460px)] bg-white/95 backdrop-blur-md text-gray-700 p-4 rounded-2xl shadow-xl border border-orange-200">
+            <div className="flex items-start gap-2">
+              <div className="w-16">
+                <label htmlFor="group-emoji-input" className="block text-xs font-semibold text-gray-500 mb-1">Emoji</label>
+                <input
+                  id="group-emoji-input"
+                  type="text"
+                  value={groupDraft.emoji}
+                  onChange={(e) => setGroupDraft(prev => (prev ? { ...prev, emoji: e.target.value } : prev))}
+                  className="w-full px-2 py-2 rounded-lg border border-gray-300 text-center text-xl"
+                  placeholder="🙂"
+                />
+              </div>
+              <div className="flex-1">
+                <Input
+                  label="Alias del grupo"
+                  value={groupDraft.label}
+                  onChange={(e) => setGroupDraft(prev => (prev ? { ...prev, label: e.target.value } : prev))}
+                  placeholder="Ej. Familia de Ana y Carlos"
+                />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label htmlFor="group-color-input-canvas" className="block text-xs font-semibold text-gray-500 mb-1">Color del grupo</label>
+              <input
+                id="group-color-input-canvas"
+                type="color"
+                value={groupDraft.color}
+                onChange={(e) => setGroupDraft(prev => (prev ? { ...prev, color: e.target.value } : prev))}
+                className="w-full h-10 rounded-lg border border-gray-300 bg-white px-2"
+              />
+            </div>
+            <p className="text-xs text-gray-600 mb-3">
+              Edición de miembros: toca nodos para seleccionar o deseleccionar. Seleccionados: {groupDraft.nodeIds.length}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleSaveGroupDraft}
+                disabled={!groupDraft.label.trim() || groupDraft.nodeIds.length === 0}
+                className="px-3 py-2 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-semibold"
+              >
+                Aceptar
+              </button>
+              <button
+                onClick={handleCancelGroupDraft}
+                className="px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-sm font-semibold text-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => setGroupDraft(prev => (prev ? { ...prev, emoji: randomGroupEmoji() } : prev))}
+                className="px-3 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 text-sm font-semibold"
+              >
+                Emoji random
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {collapsedGroupMenuPosition && selectedCollapsedGroup && (
+        <div
+          className="absolute z-30 pointer-events-auto"
+          data-collapsed-group-menu="true"
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          style={{
+            left: `${collapsedGroupMenuPosition.left}px`,
+            top: `${collapsedGroupMenuPosition.top}px`,
+            transform: 'translate(-50%, -110%)',
+          }}
+        >
+          <div className="bg-white border border-gray-200 shadow-xl rounded-xl p-2 min-w-[190px]">
+            <p className="text-xs font-semibold text-gray-700 px-2 pb-2">
+              {selectedCollapsedGroup.emoji} {selectedCollapsedGroup.label}
+            </p>
+            <div className="space-y-1">
+              <button
+                onClick={() => handleToggleCollapseGroup(selectedCollapsedGroup.id)}
+                className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-orange-50 text-xs font-semibold text-orange-700"
+              >
+                Expandir grupo
+              </button>
+              <button
+                onClick={() => handleStartEditMembers(selectedCollapsedGroup.id)}
+                className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-blue-50 text-xs font-semibold text-blue-700"
+              >
+                Editar miembros
+              </button>
+              <button
+                onClick={() => {
+                  setFamilyGroupsModalOpen(true);
+                  setCollapsedGroupMenu(null);
+                  setHighlightedGroupId(selectedCollapsedGroup.id);
+                }}
+                className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-gray-100 text-xs font-semibold text-gray-700"
+              >
+                Abrir gestión de grupos
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -814,9 +957,15 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             <g
               key={bubble.id}
               className="pointer-events-auto cursor-pointer"
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
-                handleToggleCollapseGroup(bubble.groupId);
+                setCollapsedGroupMenu((prev) => (
+                  prev?.groupId === bubble.groupId
+                    ? null
+                    : { groupId: bubble.groupId, x: bubble.x, y: bubble.y }
+                ));
               }}
             >
               <circle cx={bubble.x} cy={bubble.y} r="42" fill="white" stroke={bubble.color} strokeWidth="2.5" />
@@ -835,10 +984,14 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
               key={node.id}
               node={node}
               isSelected={!linkingMode && actionsModal.nodeId === node.id}
-              isDimmed={linkingMode && node.id !== linkingMode.sourceId && node.id !== linkTarget}
+              isDimmed={
+                (linkingMode && node.id !== linkingMode.sourceId && node.id !== linkTarget)
+                || (Boolean(groupDraft) && !groupDraft.nodeIds.includes(node.id))
+              }
               isLinkTarget={linkingMode && node.id === linkTarget}
               isGroupMemberHighlighted={highlightedGroupNodeIds.has(node.id) || (groupDraft?.nodeIds.includes(node.id) ?? false)}
               groupHighlightColor={groupDraft?.color || highlightedGroupColor}
+              defaultGroupColor={nodeGroupColorById.get(node.id)}
               onPointerDown={(e, id) => handleNodePointerDownWrapped(e, id)}
             />
           ))}

@@ -55,7 +55,16 @@ function GenderIcon({ gender, className }) {
   return <UnknownIcon className={className} />;
 }
 
-export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, isGroupMemberHighlighted, groupHighlightColor, onPointerDown }) {
+export default function FamilyNode({
+  node,
+  isSelected,
+  isDimmed,
+  isLinkTarget,
+  isGroupMemberHighlighted,
+  groupHighlightColor,
+  defaultGroupColor,
+  onPointerDown,
+}) {
   const deceased = isDeceased(node.data);
   const style = COLORS[node.data.gender] || COLORS.unknown;
 
@@ -65,6 +74,9 @@ export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, i
 
   const dateText = formatNodeDates(node.data);
   const twinBadge = node.data.twinType ? TWIN_BADGE[node.data.twinType] : null;
+  const membershipLineColor = !isDimmed
+    ? (isGroupMemberHighlighted ? (groupHighlightColor || defaultGroupColor) : defaultGroupColor)
+    : null;
 
   return (
     <g
@@ -113,8 +125,8 @@ export default function FamilyNode({ node, isSelected, isDimmed, isLinkTarget, i
       <text y="60" textAnchor="middle" className="text-[9px] fill-gray-500 pointer-events-none">
         {dateText}
       </text>
-      {isGroupMemberHighlighted && !isDimmed && (
-        <line x1="-20" y1="66" x2="20" y2="66" stroke={groupHighlightColor || '#F97316'} strokeWidth="3" strokeLinecap="round" />
+      {membershipLineColor && (
+        <line x1="-20" y1="66" x2="20" y2="66" stroke={membershipLineColor} strokeWidth="3" strokeLinecap="round" />
       )}
     </g>
   );
