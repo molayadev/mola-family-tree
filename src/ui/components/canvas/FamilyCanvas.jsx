@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Move, Link as LinkIcon, X } from 'lucide-react';
+import { Move, Link as LinkIcon, X, Eye, Pencil, GitBranch, ArrowUp, ArrowDown, Users, Venus, Mars } from 'lucide-react';
 import { isPartnerEdgeType, isBrokenLabel } from '../../../domain/config/constants';
 import { generateId } from '../../../domain/entities/Node';
 import { useCanvas } from '../../../application/hooks/useCanvas';
@@ -18,12 +18,12 @@ import Input from '../common/Input';
 const GROUP_EMOJIS = ['👨‍👩‍👧', '👨‍👩‍👧‍👦', '👩‍👩‍👦', '👨‍👨‍👧', '🏡', '💞', '🌳', '💫', '🫶', '✨'];
 const GROUP_COLORS = ['#F97316', '#7C3AED', '#0891B2', '#16A34A', '#DC2626', '#EA580C', '#4F46E5', '#D946EF'];
 const LINEAGE_VIEW_MODES = [
-  { value: 'lineage', label: 'Linaje' },
-  { value: 'ancestors', label: 'Ancestros' },
-  { value: 'descendants', label: 'Descendencia' },
-  { value: 'relatives', label: 'Familia ampliada' },
-  { value: 'maternal', label: 'Rama materna' },
-  { value: 'paternal', label: 'Rama paterna' },
+  { value: 'lineage', label: 'Linaje', shortLabel: 'Linaje', icon: GitBranch },
+  { value: 'ancestors', label: 'Ancestros', shortLabel: 'Asc.', icon: ArrowUp },
+  { value: 'descendants', label: 'Descendencia', shortLabel: 'Desc.', icon: ArrowDown },
+  { value: 'relatives', label: 'Mi árbol', shortLabel: 'Árbol', icon: Users },
+  { value: 'maternal', label: 'Rama materna', shortLabel: 'Madre', icon: Venus },
+  { value: 'paternal', label: 'Rama paterna', shortLabel: 'Padre', icon: Mars },
 ];
 const FIT_TO_SCREEN_DELAY = 100;
 
@@ -137,6 +137,117 @@ const chooseParentWithMotherPriority = (parents, nodeMap, preferredId = null) =>
   return parents[0];
 };
 
+const buildNodeParentControls = (nodes, edges, nodeId, parentChoiceByChildId) => {
+  if (!nodeId) return { options: [], activeParentId: null };
+
+  const nodeMap = new Map(nodes.map(node => [node.id, node]));
+  if (!nodeMap.has(nodeId)) return { options: [], activeParentId: null };
+
+  const parentIds = [...new Set(
+    edges
+      .filter(edge => edge.type === 'parent' && edge.to === nodeId)
+      .map(edge => edge.from)
+  )].filter(id => nodeMap.has(id));
+
+  const options = parentIds.map((parentId, index) => {
+    const parentNode = nodeMap.get(parentId);
+    const gender = parentNode?.data?.gender || 'unknown';
+    const branchShortLabel = gender === 'female' ? 'M' : (gender === 'male' ? 'P' : `${index + 1}`);
+    return {
+      id: parentId,
+      gender,
+      branchShortLabel,
+      label: `${parentNode?.data?.firstName || 'Rama'} ${parentNode?.data?.lastName || ''}`.trim(),
+    };
+  });
+
+  const activeParentId = chooseParentWithMotherPriority(
+    parentIds,
+    nodeMap,
+    parentChoiceByChildId?.[nodeId] || null,
+  );
+
+  return { options, activeParentId };
+};
+
+const buildLineageColumnPositions = (nodes, edges, focusNodeId) => {
+  if (!focusNodeId) return new Map();
+
+  const nodeMap = new Map(nodes.map(node => [node.id, node]));
+  const focusNode = nodeMap.get(focusNodeId);
+  if (!focusNode) return new Map();
+
+  const parentsByChild = new Map();
+  edges.forEach((edge) => {
+    if (edge.type !== 'parent') return;
+    if (!parentsByChild.has(edge.to)) parentsByChild.set(edge.to, []);
+    parentsByChild.get(edge.to).push(edge.from);
+  });
+
+  const orderParents = (parentIds) => [...new Set(parentIds)]
+    .filter(id => nodeMap.has(id))
+    .sort((a, b) => {
+      const genderWeight = (gender) => {
+        if (gender === 'male') return 0;
+        if (gender === 'female') return 1;
+        return 2;
+      };
+
+      const aNode = nodeMap.get(a);
+      const bNode = nodeMap.get(b);
+      const aWeight = genderWeight(aNode?.data?.gender);
+      const bWeight = genderWeight(bNode?.data?.gender);
+      if (aWeight !== bWeight) return aWeight - bWeight;
+
+      const aName = `${aNode?.data?.firstName || ''} ${aNode?.data?.lastName || ''}`.trim();
+      const bName = `${bNode?.data?.firstName || ''} ${bNode?.data?.lastName || ''}`.trim();
+      return aName.localeCompare(bName);
+    });
+
+  const metaByNodeId = new Map([[focusNodeId, { generation: 0, slot: 0 }]]);
+  const queue = [{ nodeId: focusNodeId, generation: 0, slot: 0 }];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const parentIds = orderParents(parentsByChild.get(current.nodeId) || []);
+
+    parentIds.forEach((parentId, index) => {
+      const nextGeneration = current.generation + 1;
+      const nextSlot = (current.slot * 2) + index;
+      const existing = metaByNodeId.get(parentId);
+
+      if (!existing || nextGeneration < existing.generation || (nextGeneration === existing.generation && nextSlot < existing.slot)) {
+        metaByNodeId.set(parentId, { generation: nextGeneration, slot: nextSlot });
+        queue.push({ nodeId: parentId, generation: nextGeneration, slot: nextSlot });
+      }
+    });
+  }
+
+  const nodesByGeneration = new Map();
+  metaByNodeId.forEach((meta, nodeId) => {
+    if (!nodesByGeneration.has(meta.generation)) nodesByGeneration.set(meta.generation, []);
+    nodesByGeneration.get(meta.generation).push({ nodeId, slot: meta.slot });
+  });
+
+  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
+  const columnGap = isMobileViewport ? 190 : 250;
+  const rowGap = isMobileViewport ? 94 : 112;
+  const positions = new Map();
+
+  [...nodesByGeneration.entries()].forEach(([generation, entries]) => {
+    const ordered = entries.sort((a, b) => a.slot - b.slot);
+    ordered.forEach((entry, index) => {
+      const yOffset = (index - ((ordered.length - 1) / 2)) * rowGap;
+      positions.set(entry.nodeId, {
+        x: focusNode.x + (generation * columnGap),
+        y: focusNode.y + yOffset,
+      });
+    });
+  });
+
+  return positions;
+};
+
 const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId, viewMode) => {
   const nodeMap = new Map(nodes.map(node => [node.id, node]));
   const parentsByChild = new Map();
@@ -246,6 +357,22 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
     });
   };
 
+  const collectAllAncestors = (startNodeId) => {
+    const ancestors = new Set();
+    const stack = [startNodeId];
+
+    while (stack.length > 0) {
+      const currentId = stack.pop();
+      getUniqueParents(currentId).forEach((parentId) => {
+        if (ancestors.has(parentId)) return;
+        ancestors.add(parentId);
+        stack.push(parentId);
+      });
+    }
+
+    return [...ancestors];
+  };
+
   if (!resolvedFocusNodeId) {
     return {
       resolvedFocusNodeId: null,
@@ -270,24 +397,51 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
   });
 
   addNode(resolvedFocusNodeId);
-  addNodePartners(resolvedFocusNodeId);
+  if (viewMode !== 'lineage') {
+    addNodePartners(resolvedFocusNodeId);
+  }
 
-  if (viewMode === 'descendants' || viewMode === 'lineage' || viewMode === 'relatives') {
+  if (viewMode === 'descendants' || viewMode === 'relatives') {
     addDescendants(resolvedFocusNodeId);
   }
 
   let activeParentId = null;
-  if (viewMode === 'ancestors' || viewMode === 'lineage' || viewMode === 'relatives') {
-    const ancestorPath = getAncestorPath(resolvedFocusNodeId, viewMode);
-    activeParentId = ancestorPath[0] || null;
-    ancestorPath.forEach((ancestorId) => {
-      addNode(ancestorId);
-      addNodePartners(ancestorId);
-    });
+  if (viewMode === 'lineage') {
+    activeParentId = chooseParentWithMotherPriority(
+      focusParentsRaw,
+      nodeMap,
+      parentChoiceByChildId?.[resolvedFocusNodeId] || null,
+    );
 
+    const allAncestors = collectAllAncestors(resolvedFocusNodeId);
+    allAncestors.forEach((ancestorId) => {
+      addNode(ancestorId);
+    });
+  } else if (viewMode === 'ancestors' || viewMode === 'relatives') {
     if (viewMode === 'relatives') {
+      activeParentId = chooseParentWithMotherPriority(
+        focusParentsRaw,
+        nodeMap,
+        parentChoiceByChildId?.[resolvedFocusNodeId] || null,
+      );
+
+      const allAncestors = collectAllAncestors(resolvedFocusNodeId);
+      allAncestors.forEach((ancestorId) => {
+        addNode(ancestorId);
+        addNodePartners(ancestorId);
+        addSiblingsWithFamilies(ancestorId);
+        addDescendants(ancestorId);
+      });
+
       addSiblingsWithFamilies(resolvedFocusNodeId);
-      ancestorPath.forEach((ancestorId) => addSiblingsWithFamilies(ancestorId));
+    } else {
+      const ancestorPath = getAncestorPath(resolvedFocusNodeId, viewMode);
+      activeParentId = ancestorPath[0] || null;
+      ancestorPath.forEach((ancestorId) => {
+        addNode(ancestorId);
+        addNodePartners(ancestorId);
+        addSiblingsWithFamilies(ancestorId);
+      });
     }
   } else if (viewMode === 'maternal' || viewMode === 'paternal') {
     const rootParent = chooseParentByMode(getUniqueParents(resolvedFocusNodeId), resolvedFocusNodeId, viewMode);
@@ -298,6 +452,7 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
       branchAncestors.forEach((ancestorId) => {
         addNode(ancestorId);
         addNodePartners(ancestorId);
+        addSiblingsWithFamilies(ancestorId);
         addDescendants(ancestorId);
       });
     } else {
@@ -325,6 +480,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [partnerSelection, setPartnerSelection] = useState(null);
   const [focusNodeId, setFocusNodeId] = useState(() => nodes[0]?.id || null);
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [lineageViewMode, setLineageViewMode] = useState('lineage');
   const [parentChoiceByChildId, setParentChoiceByChildId] = useState({});
   const [linkTypesModalOpen, setLinkTypesModalOpen] = useState(false);
@@ -372,6 +528,55 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     () => nodes.filter(n => !effectiveHiddenNodeIds.has(n.id)),
     [nodes, effectiveHiddenNodeIds],
   );
+
+  const lineageColumnPositions = useMemo(
+    () => (lineageViewMode === 'lineage'
+      ? buildLineageColumnPositions(nodes, edges, lineageVisibility.resolvedFocusNodeId)
+      : new Map()),
+    [lineageViewMode, nodes, edges, lineageVisibility.resolvedFocusNodeId],
+  );
+
+  const lineageAncestorNodeIds = useMemo(() => {
+    if (lineageViewMode !== 'lineage') return new Set();
+    const focusId = lineageVisibility.resolvedFocusNodeId;
+    if (!focusId) return new Set();
+
+    const parentsByChild = new Map();
+    edges.forEach((edge) => {
+      if (edge.type !== 'parent') return;
+      if (!parentsByChild.has(edge.to)) parentsByChild.set(edge.to, []);
+      parentsByChild.get(edge.to).push(edge.from);
+    });
+
+    const ancestorIds = new Set();
+    const stack = [focusId];
+    while (stack.length > 0) {
+      const currentId = stack.pop();
+      const parentIds = [...new Set(parentsByChild.get(currentId) || [])];
+      parentIds.forEach((parentId) => {
+        if (ancestorIds.has(parentId)) return;
+        ancestorIds.add(parentId);
+        stack.push(parentId);
+      });
+    }
+
+    return ancestorIds;
+  }, [lineageViewMode, edges, lineageVisibility.resolvedFocusNodeId]);
+
+  const renderedNodeById = useMemo(() => {
+    const map = new Map();
+    nodes.forEach((node) => {
+      const forcedPosition = lineageColumnPositions.get(node.id);
+      map.set(node.id, forcedPosition ? { ...node, ...forcedPosition } : node);
+    });
+    return map;
+  }, [nodes, lineageColumnPositions]);
+
+  const displayedVisibleNodes = useMemo(
+    () => visibleNodes.map(node => renderedNodeById.get(node.id) || node),
+    [visibleNodes, renderedNodeById],
+  );
+
   const collapsedGroupByNodeId = useMemo(() => {
     if (groupDraft) return new Map();
     const map = new Map();
@@ -412,7 +617,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [nodes, normalizedFamilyGroups, isolatedGroupId, groupDraft]);
 
   const renderedEdges = useMemo(() => {
-    const nodeMap = new Map(nodes.map(node => [node.id, node]));
+    const nodeMap = renderedNodeById;
     const dedupe = new Set();
     const output = [];
 
@@ -458,7 +663,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     });
 
     return output;
-  }, [nodes, edges, effectiveHiddenNodeIds, collapsedGroupByNodeId, collapsedGroupBubbleMap]);
+  }, [renderedNodeById, edges, effectiveHiddenNodeIds, collapsedGroupByNodeId, collapsedGroupBubbleMap]);
 
   const nodeGroupColorById = useMemo(() => {
     const map = new Map();
@@ -511,7 +716,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   useEffect(() => {
     if (!lineageVisibility.resolvedFocusNodeId) return;
     if (groupDraft) return;
-    const filteredVisibleNodes = nodes.filter(node => !effectiveHiddenNodeIds.has(node.id));
+    const filteredVisibleNodes = displayedVisibleNodes;
     if (filteredVisibleNodes.length === 0) return;
     const timer = setTimeout(() => fitToScreen(filteredVisibleNodes), FIT_TO_SCREEN_DELAY);
     return () => clearTimeout(timer);
@@ -521,8 +726,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     parentChoiceByChildId,
     isolatedGroupId,
     groupDraft,
-    nodes,
-    effectiveHiddenNodeIds,
+    displayedVisibleNodes,
     fitToScreen,
   ]);
 
@@ -581,6 +785,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [normalizedFamilyGroups]);
 
   const handleLineClick = useCallback((edgeId, sourceNodeId) => {
+    setSelectedNodeId(sourceNodeId);
     setFocusNodeId(sourceNodeId);
     openActionsModal(sourceNodeId, 'links', edgeId);
     selectGroupFromNode(sourceNodeId);
@@ -1000,11 +1205,47 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     handleNodePointerDown(e, nodeId, nodes);
   }, [groupDraft, linkingMode, handleLinkTargetSelected, handleNodePointerDown, nodes, stateRef]);
 
+  const handleViewModeChange = useCallback((nextMode) => {
+    const hasNode = (nodeId) => Boolean(nodeId) && nodes.some(node => node.id === nodeId);
+    const targetNodeId = hasNode(selectedNodeId)
+      ? selectedNodeId
+      : (hasNode(focusNodeId) ? focusNodeId : (nodes[0]?.id || null));
+
+    if (targetNodeId) {
+      setFocusNodeId(targetNodeId);
+
+      if (nextMode === 'maternal' || nextMode === 'paternal') {
+        const nodeMap = new Map(nodes.map(node => [node.id, node]));
+        const parentIds = [...new Set(
+          edges
+            .filter(edge => edge.type === 'parent' && edge.to === targetNodeId)
+            .map(edge => edge.from)
+        )].filter(id => nodeMap.has(id));
+
+        if (parentIds.length > 0) {
+          const preferredParent = nextMode === 'maternal'
+            ? parentIds.find(id => nodeMap.get(id)?.data?.gender === 'female')
+            : parentIds.find(id => nodeMap.get(id)?.data?.gender === 'male');
+          const fallbackParent = chooseParentWithMotherPriority(
+            parentIds,
+            nodeMap,
+            parentChoiceByChildId?.[targetNodeId] || null,
+          );
+          const selectedParent = preferredParent || fallbackParent;
+          if (selectedParent) {
+            setParentChoiceByChildId(prev => ({ ...prev, [targetNodeId]: selectedParent }));
+          }
+        }
+      }
+    }
+
+    setLineageViewMode(nextMode);
+  }, [selectedNodeId, focusNodeId, nodes, edges, parentChoiceByChildId]);
+
   const handleSelectNode = useCallback((nodeId) => {
-    setFocusNodeId(nodeId);
-    openActionsModal(nodeId);
+    setSelectedNodeId(nodeId);
     selectGroupFromNode(nodeId);
-  }, [openActionsModal, selectGroupFromNode]);
+  }, [selectGroupFromNode]);
 
   const handleMouseUpCallback = useCallback(() => {
     handleDragEnd();
@@ -1031,6 +1272,16 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
   const actionsModalNode = useMemo(() => nodes.find(n => n.id === actionsModal.nodeId), [nodes, actionsModal.nodeId]);
   const focusedNode = useMemo(() => nodes.find(n => n.id === lineageVisibility.resolvedFocusNodeId) || null, [nodes, lineageVisibility.resolvedFocusNodeId]);
+  const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
+  const controlsNode = selectedNode || focusedNode;
+  const controlsRenderNode = useMemo(
+    () => (controlsNode ? (renderedNodeById.get(controlsNode.id) || controlsNode) : null),
+    [controlsNode, renderedNodeById],
+  );
+  const nodeParentControls = useMemo(
+    () => buildNodeParentControls(nodes, edges, controlsNode?.id || null, parentChoiceByChildId),
+    [nodes, edges, controlsNode?.id, parentChoiceByChildId],
+  );
 
   const actionsModalHasParents = useMemo(() => {
     if (!actionsModal.nodeId) return false;
@@ -1041,6 +1292,12 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     if (!actionsModal.nodeId) return false;
     return treeService.hasSpouse(edges, actionsModal.nodeId);
   }, [actionsModal.nodeId, edges, treeService]);
+
+  const actionsModalIsLineageAncestor = useMemo(() => (
+    lineageViewMode === 'lineage'
+    && Boolean(actionsModal.nodeId)
+    && lineageAncestorNodeIds.has(actionsModal.nodeId)
+  ), [lineageViewMode, actionsModal.nodeId, lineageAncestorNodeIds]);
 
   const selectedCollapsedGroup = useMemo(
     () => normalizedFamilyGroups.find(group => group.id === collapsedGroupMenu?.groupId) || null,
@@ -1081,7 +1338,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         username={username}
         nodeCount={nodes.length}
         zoom={transform.k}
-        onFitToScreen={() => fitToScreen(visibleNodes.length > 0 ? visibleNodes : nodes)}
+        onFitToScreen={() => fitToScreen(displayedVisibleNodes.length > 0 ? displayedVisibleNodes : nodes)}
         onOrganize={handleOrganize}
         onManageLinkTypes={() => setLinkTypesModalOpen(true)}
         onOpenFamilyGroups={() => setFamilyGroupsModalOpen(true)}
@@ -1092,7 +1349,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         onUndo={handleUndo}
         canUndo={canUndo}
         viewMode={lineageViewMode}
-        onChangeViewMode={setLineageViewMode}
+        onChangeViewMode={handleViewModeChange}
         viewModeOptions={LINEAGE_VIEW_MODES}
         focusedNodeName={focusedNode ? `${focusedNode.data.firstName} ${focusedNode.data.lastName}`.trim() : ''}
       />
@@ -1114,6 +1371,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         initialExpandedEdgeId={actionsModal.expandedEdgeId}
         hasParents={actionsModalHasParents}
         hasSpouse={actionsModalHasSpouse}
+        lineageAncestorMode={actionsModalIsLineageAncestor}
       />
 
       <PartnerSelectionModal
@@ -1322,65 +1580,86 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             </g>
           ))}
 
-          {focusedNode && lineageVisibility.focusParentOptions.length > 1 && (
+          {controlsRenderNode && lineageViewMode !== 'lineage' && (
             <g
               className="pointer-events-auto"
-              transform={`translate(${focusedNode.x}, ${focusedNode.y - 56})`}
+              transform={`translate(${controlsRenderNode.x}, ${controlsRenderNode.y - 56})`}
             >
-              <rect
-                x={-26}
-                y={-9}
-                width={52}
-                height={18}
-                rx={9}
-                fill="white"
-                stroke="#CBD5E1"
-                strokeWidth="1"
-              />
-              {lineageVisibility.focusParentOptions.slice(0, 2).map((option, index) => {
-                const activeParentId = lineageVisibility.activeParentId || lineageVisibility.focusParentOptions[0]?.id || null;
-                const isActive = activeParentId === option.id;
-                const baseX = index === 0 ? -18 : 6;
-                return (
-                  <g
-                    key={option.id}
-                    className="cursor-pointer"
+              <foreignObject
+                x={-70}
+                y={-12}
+                width={140}
+                height={24}
+              >
+                <div className="w-full h-full flex items-center justify-center gap-1">
+                  {nodeParentControls.options.slice(0, 2).map((option) => {
+                    const isActive = nodeParentControls.activeParentId === option.id;
+                    const ParentIcon = option.gender === 'female'
+                      ? Venus
+                      : (option.gender === 'male' ? Mars : GitBranch);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
+                        }}
+                        onTouchStart={(e) => {
+                          e.stopPropagation();
+                          setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
+                        }}
+                        className={`w-5 h-5 rounded-full text-white flex items-center justify-center ${
+                          isActive ? 'bg-orange-500' : 'bg-slate-400'
+                        }`}
+                        title={option.label}
+                      >
+                        <ParentIcon size={11} />
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
                     onMouseDown={(e) => {
                       e.stopPropagation();
-                      setParentChoiceByChildId(prev => ({ ...prev, [focusedNode.id]: option.id }));
+                      setFocusNodeId(controlsNode.id);
                     }}
                     onTouchStart={(e) => {
                       e.stopPropagation();
-                      setParentChoiceByChildId(prev => ({ ...prev, [focusedNode.id]: option.id }));
+                      setFocusNodeId(controlsNode.id);
                     }}
+                    className="w-5 h-5 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center"
+                    title="Ver perspectiva"
                   >
-                    <rect
-                      x={baseX}
-                      y={-5}
-                      width={12}
-                      height={10}
-                      rx={5}
-                      fill={isActive ? '#F97316' : '#94A3B8'}
-                    />
-                    <text
-                      x={baseX + 6}
-                      y={3}
-                      textAnchor="middle"
-                      className="text-[7px] font-bold fill-white pointer-events-none"
-                    >
-                      {option.branchShortLabel}
-                    </text>
-                  </g>
-                );
-              })}
+                    <Eye size={12} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      openActionsModal(controlsNode.id);
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      openActionsModal(controlsNode.id);
+                    }}
+                    className="w-5 h-5 rounded-full border border-orange-300 bg-white text-orange-600 flex items-center justify-center"
+                    title="Editar acciones"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                </div>
+              </foreignObject>
             </g>
           )}
 
-          {visibleNodes.map(node => (
+          {displayedVisibleNodes.map(node => (
             <FamilyNode
               key={node.id}
               node={node}
-              isSelected={!linkingMode && actionsModal.nodeId === node.id}
+              isSelected={!linkingMode && (selectedNodeId === node.id || actionsModal.nodeId === node.id)}
               isDimmed={
                 (linkingMode && node.id !== linkingMode.sourceId && node.id !== linkTarget)
                 || (Boolean(groupDraft) && !groupDraft.nodeIds.includes(node.id))

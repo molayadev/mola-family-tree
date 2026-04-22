@@ -44,19 +44,26 @@ export default function CanvasHUD({
             </p>
           )}
           {viewModeOptions.length > 0 && (
-            <div className="mt-2 inline-flex rounded-xl border border-gray-200 bg-white p-1 gap-1">
+            <div className="mt-2 inline-flex flex-wrap rounded-xl border border-gray-200 bg-white p-1 gap-1 max-w-[420px]">
               {viewModeOptions.map((mode) => (
-                <button
-                  key={mode.value}
-                  onClick={() => onChangeViewMode(mode.value)}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
-                    viewMode === mode.value
-                      ? 'bg-orange-500 text-white'
-                      : 'text-gray-600 hover:bg-orange-50'
-                  }`}
-                >
-                  {mode.label}
-                </button>
+                (() => {
+                  const Icon = mode.icon;
+                  return (
+                    <button
+                      key={mode.value}
+                      onClick={() => onChangeViewMode(mode.value)}
+                      title={mode.label}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1.5 ${
+                        viewMode === mode.value
+                          ? 'bg-orange-500 text-white'
+                          : 'text-gray-600 hover:bg-orange-50'
+                      }`}
+                    >
+                      {Icon ? <Icon size={12} /> : null}
+                      <span>{mode.shortLabel || mode.label}</span>
+                    </button>
+                  );
+                })()
               ))}
             </div>
           )}
@@ -127,23 +134,32 @@ export default function CanvasHUD({
 
               {viewModeOptions.length > 0 && (
                 <div className="px-2 pb-2">
+                  <p className="text-[10px] text-gray-500 mb-2 px-1">
+                    Vista: <span className="font-semibold text-gray-700">{viewModeOptions.find(mode => mode.value === viewMode)?.label || viewMode}</span>
+                  </p>
                   <div
-                    className="grid gap-1 rounded-xl border border-gray-200 bg-white p-1"
+                    className="grid gap-2 rounded-xl border border-gray-200 bg-white p-2"
                     style={{ gridTemplateColumns: `repeat(${Math.min(3, viewModeOptions.length)}, minmax(0, 1fr))` }}
                   >
-                    {viewModeOptions.map((mode) => (
-                      <button
-                        key={mode.value}
-                        onClick={() => handleAction(() => onChangeViewMode(mode.value))}
-                        className={`px-1.5 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${
-                          viewMode === mode.value
-                            ? 'bg-orange-500 text-white'
-                            : 'text-gray-600 hover:bg-orange-50'
-                        }`}
-                      >
-                        {mode.label}
-                      </button>
-                    ))}
+                    {viewModeOptions.map((mode) => {
+                      const Icon = mode.icon;
+                      return (
+                        <button
+                          key={mode.value}
+                          onClick={() => handleAction(() => onChangeViewMode(mode.value))}
+                          title={mode.label}
+                          aria-label={mode.label}
+                          className={`min-h-[56px] rounded-xl text-[10px] font-bold transition-colors flex flex-col items-center justify-center gap-1 ${
+                            viewMode === mode.value
+                              ? 'bg-orange-500 text-white'
+                              : 'text-gray-600 hover:bg-orange-50'
+                          }`}
+                        >
+                          {Icon ? <Icon size={16} /> : null}
+                          <span>{mode.shortLabel || mode.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

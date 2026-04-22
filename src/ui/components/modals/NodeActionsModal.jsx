@@ -58,6 +58,7 @@ export default function NodeActionsModal({
   // Restriction flags
   hasParents,
   hasSpouse,
+  lineageAncestorMode = false,
 }) {
   const [activeTab, setActiveTab] = useState(initialTab || null);
   const [formData, setFormData] = useState(() => node ? { ...node.data } : {});
@@ -95,6 +96,11 @@ export default function NodeActionsModal({
   const handleQuickAction = (action) => {
     if (!readyRef.current) return; // Ignore accidental taps before guard expires
     onAction(action);
+  };
+
+  const handleEditQuickAction = () => {
+    if (!readyRef.current) return;
+    setActiveTab('edit');
   };
 
   const handleTabClick = (tab) => {
@@ -211,51 +217,73 @@ export default function NodeActionsModal({
         {/* Quick actions row */}
         <div className="px-5 pt-2 pb-1">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Acciones rápidas</p>
-          <div className="grid grid-cols-5 gap-2">
-            <button
-              className={`${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
-              onClick={() => handleQuickAction('add_child')}
-            >
-              <ArrowDown size={22} className="text-orange-500" />
-              <span className="text-[10px] font-bold text-gray-600">Hijo</span>
-            </button>
-            <button
-              className={hasParents ? `${disabledBtnClass} border-gray-200 bg-gray-50` : `${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
-              onClick={() => !hasParents && handleQuickAction('add_parents')}
-              disabled={hasParents}
-              title={hasParents ? 'Ya tiene padres registrados' : ''}
-            >
-              <ArrowUp size={22} className={hasParents ? 'text-gray-300' : 'text-orange-500'} />
-              <span className="text-[10px] font-bold text-gray-600">{hasParents ? 'Tiene padres' : 'Padres'}</span>
-            </button>
-            <button
-              className={hasSpouse ? `${disabledBtnClass} border-gray-200 bg-gray-50` : `${quickBtnClass} border-pink-200 bg-white hover:bg-pink-50 hover:border-pink-400`}
-              onClick={() => !hasSpouse && handleQuickAction('add_spouse')}
-              disabled={hasSpouse}
-              title={hasSpouse ? 'Ya tiene cónyuge registrado' : ''}
-            >
-              <Heart size={22} className={hasSpouse ? 'text-gray-300' : 'text-pink-500'} />
-              <span className="text-[10px] font-bold text-gray-600">{hasSpouse ? 'Tiene pareja' : 'Esposa'}</span>
-            </button>
-            <button
-              className={`${quickBtnClass} border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-400`}
-              onClick={() => handleQuickAction('add_ex_spouse')}
-            >
-              <HeartCrack size={22} className="text-gray-400" />
-              <span className="text-[10px] font-bold text-gray-600">Ex</span>
-            </button>
-            <button
-              className={`${quickBtnClass} border-green-200 bg-white hover:bg-green-50 hover:border-green-400`}
-              onClick={() => handleQuickAction('link')}
-            >
-              <Waypoints size={22} className="text-green-500" />
-              <span className="text-[10px] font-bold text-gray-600">Vincular</span>
-            </button>
-          </div>
+          {lineageAncestorMode ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className={hasParents ? `${disabledBtnClass} border-gray-200 bg-gray-50` : `${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
+                onClick={() => !hasParents && handleQuickAction('add_parents')}
+                disabled={hasParents}
+                title={hasParents ? 'Ya tiene padres registrados' : ''}
+              >
+                <ArrowUp size={22} className={hasParents ? 'text-gray-300' : 'text-orange-500'} />
+                <span className="text-[10px] font-bold text-gray-600">{hasParents ? 'Tiene padres' : 'Padres'}</span>
+              </button>
+              <button
+                className={`${quickBtnClass} border-blue-200 bg-white hover:bg-blue-50 hover:border-blue-400`}
+                onClick={handleEditQuickAction}
+              >
+                <Edit2 size={22} className="text-blue-500" />
+                <span className="text-[10px] font-bold text-gray-600">Editar</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-5 gap-2">
+              <button
+                className={`${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
+                onClick={() => handleQuickAction('add_child')}
+              >
+                <ArrowDown size={22} className="text-orange-500" />
+                <span className="text-[10px] font-bold text-gray-600">Hijo</span>
+              </button>
+              <button
+                className={hasParents ? `${disabledBtnClass} border-gray-200 bg-gray-50` : `${quickBtnClass} border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-400`}
+                onClick={() => !hasParents && handleQuickAction('add_parents')}
+                disabled={hasParents}
+                title={hasParents ? 'Ya tiene padres registrados' : ''}
+              >
+                <ArrowUp size={22} className={hasParents ? 'text-gray-300' : 'text-orange-500'} />
+                <span className="text-[10px] font-bold text-gray-600">{hasParents ? 'Tiene padres' : 'Padres'}</span>
+              </button>
+              <button
+                className={hasSpouse ? `${disabledBtnClass} border-gray-200 bg-gray-50` : `${quickBtnClass} border-pink-200 bg-white hover:bg-pink-50 hover:border-pink-400`}
+                onClick={() => !hasSpouse && handleQuickAction('add_spouse')}
+                disabled={hasSpouse}
+                title={hasSpouse ? 'Ya tiene cónyuge registrado' : ''}
+              >
+                <Heart size={22} className={hasSpouse ? 'text-gray-300' : 'text-pink-500'} />
+                <span className="text-[10px] font-bold text-gray-600">{hasSpouse ? 'Tiene pareja' : 'Esposa'}</span>
+              </button>
+              <button
+                className={`${quickBtnClass} border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-400`}
+                onClick={() => handleQuickAction('add_ex_spouse')}
+              >
+                <HeartCrack size={22} className="text-gray-400" />
+                <span className="text-[10px] font-bold text-gray-600">Ex</span>
+              </button>
+              <button
+                className={`${quickBtnClass} border-green-200 bg-white hover:bg-green-50 hover:border-green-400`}
+                onClick={() => handleQuickAction('link')}
+              >
+                <Waypoints size={22} className="text-green-500" />
+                <span className="text-[10px] font-bold text-gray-600">Vincular</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Action tabs row */}
-        <div className="px-5 pt-3 pb-2">
+        {!lineageAncestorMode && (
+          <div className="px-5 pt-3 pb-2">
           <div className="grid grid-cols-4 gap-2">
             <button
               className={`${quickBtnClass} ${activeTab === 'links' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-purple-200 bg-white hover:bg-purple-50 hover:border-purple-400'}`}
@@ -286,7 +314,8 @@ export default function NodeActionsModal({
               <span className="text-[10px] font-bold text-gray-600">Salir</span>
             </button>
           </div>
-        </div>
+          </div>
+        )}
 
         {/* Content area */}
         {activeTab && (
