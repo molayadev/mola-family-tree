@@ -5,7 +5,7 @@ export default function PartnerSelectionModal({ selection, nodes, onClose, onSel
   if (!selection) return null;
 
   const sourceNode = nodes.find(n => n.id === selection.sourceId);
-  const sourceName = sourceNode ? `${sourceNode.data.firstName} ${sourceNode.data.lastName}`.trim() : 'esta persona';
+  const sourceName = sourceNode ? `${sourceNode.data.firstName} ${sourceNode.data.lastName}`.trim() : '';
   const mode = selection.mode || 'child';
   const optionIds = Array.isArray(selection.options) ? selection.options : selection.partners || [];
   const preferredOptionIds = new Set(selection.preferredOptionIds || selection.partners || []);
@@ -13,7 +13,7 @@ export default function PartnerSelectionModal({ selection, nodes, onClose, onSel
   const contentByMode = {
     child: {
       title: 'Añadir Hijo',
-      description: `¿Con quién tuvo este hijo ${sourceName !== 'esta persona' ? `(${sourceName})` : ''}?`,
+      description: `¿Con quién tuvo este hijo${sourceName ? ` de ${sourceName}` : ''}?`,
       existingLabel: 'Posibles co-progenitores',
       createLabel: 'Nueva persona como co-progenitor',
       fallbackLabel: 'Padre/Madre desconocido (solo)',

@@ -22,6 +22,7 @@ const LINEAGE_VIEW_MODES = [
   { value: 'ancestors', label: 'Ancestros' },
   { value: 'descendants', label: 'Descendencia' },
 ];
+const FIT_TO_SCREEN_DELAY = 100;
 
 const randomGroupEmoji = () => GROUP_EMOJIS[Math.floor(Math.random() * GROUP_EMOJIS.length)];
 const randomGroupColor = () => GROUP_COLORS[Math.floor(Math.random() * GROUP_COLORS.length)];
@@ -123,7 +124,7 @@ const buildAutoFamilyGroups = (nodes, edges) => {
   });
 };
 
-const preferMotherParent = (parents, nodeMap, preferredId = null) => {
+const chooseParentWithMotherPriority = (parents, nodeMap, preferredId = null) => {
   if (!Array.isArray(parents) || parents.length === 0) return null;
   if (preferredId && parents.includes(preferredId)) return preferredId;
   const mother = parents.find((id) => nodeMap.get(id)?.data?.gender === 'female');
@@ -225,7 +226,7 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
       visited.add(currentChildId);
       const parents = [...new Set(parentsByChild.get(currentChildId) || [])].filter(id => nodeMap.has(id));
       if (parents.length === 0) break;
-      const preferredParentId = preferMotherParent(
+      const preferredParentId = chooseParentWithMotherPriority(
         parents,
         nodeMap,
         parentChoiceByChildId?.[currentChildId] || null,
@@ -237,7 +238,7 @@ const buildLineageVisibility = (nodes, edges, focusNodeId, parentChoiceByChildId
       currentChildId = preferredParentId;
     }
   } else {
-    activeParentId = preferMotherParent(
+    activeParentId = chooseParentWithMotherPriority(
       focusParentsRaw,
       nodeMap,
       parentChoiceByChildId?.[resolvedFocusNodeId] || null,
@@ -271,26 +272,6 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [linkTarget, setLinkTarget] = useState(null);    // target nodeId or null
 
   const autoGroupsInitializedRef = useRef(false);
-
-  useEffect(() => {
-    if (nodes.length === 0) {
-      setFocusNodeId(null);
-      return;
-    }
-
-    const validNodeIds = new Set(nodes.map(node => node.id));
-    if (!focusNodeId || !validNodeIds.has(focusNodeId)) {
-      setFocusNodeId(nodes[0].id);
-    }
-
-    setParentChoiceByChildId((prev) => {
-      const next = {};
-      Object.entries(prev).forEach(([childId, parentId]) => {
-        if (validNodeIds.has(childId) && validNodeIds.has(parentId)) next[childId] = parentId;
-      });
-      return next;
-    });
-  }, [nodes, focusNodeId]);
 
   const normalizedFamilyGroups = useMemo(() => normalizeFamilyGroups(familyGroups, nodes), [familyGroups, nodes]);
 
@@ -454,7 +435,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   // Initialize view on mount
   useEffect(() => {
     if (nodes.length > 0) {
-      const timer = setTimeout(() => fitToScreen(nodes), 100);
+      const timer = setTimeout(() => fitToScreen(nodes), FIT_TO_SCREEN_DELAY);
       return () => clearTimeout(timer);
     }
     setTransform({ x: window.innerWidth / 2, y: window.innerHeight / 2, k: 1 });
@@ -465,7 +446,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     if (groupDraft) return;
     const filteredVisibleNodes = nodes.filter(node => !effectiveHiddenNodeIds.has(node.id));
     if (filteredVisibleNodes.length === 0) return;
-    const timer = setTimeout(() => fitToScreen(filteredVisibleNodes), 100);
+    const timer = setTimeout(() => fitToScreen(filteredVisibleNodes), FIT_TO_SCREEN_DELAY);
     return () => clearTimeout(timer);
   }, [
     lineageVisibility.resolvedFocusNodeId,
@@ -544,7 +525,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       !groupHidden.has(node.id)
       && lineageVisibility.visibleNodeIds.has(node.id)
     ));
-    setTimeout(() => fitToScreen(nextVisible.length > 0 ? nextVisible : nodes), 100);
+    setTimeout(() => fitToScreen(nextVisible.length > 0 ? nextVisible : nodes), FIT_TO_SCREEN_DELAY);
   }, [nodes, isolatedGroupId, fitToScreen, lineageVisibility.visibleNodeIds]);
 
   const confirmAddChild = useCallback((sourceId, partnerId) => {
@@ -554,7 +535,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     setPartnerSelection(null);
     const createdChild = result.nodes[result.nodes.length - 1];
     if (createdChild) setFocusNodeId(createdChild.id);
-    setTimeout(() => fitToScreen(result.nodes), 100);
+    setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
   }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, undoService]);
 
   const handleSelectPartnerAction = useCallback((selectionValue) => {
@@ -578,9 +559,10 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
           createdPartner?.id || null,
         );
         saveAndUpdate(result.nodes, result.edges);
-        setFocusNodeId(createdPartner?.id || sourceId);
+        const createdChild = result.nodes[result.nodes.length - 1];
+        setFocusNodeId(createdChild?.id || sourceId);
         setPartnerSelection(null);
-        setTimeout(() => fitToScreen(result.nodes), 100);
+        setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
         return;
       }
       confirmAddChild(sourceId, selectionValue);
@@ -595,16 +577,18 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         const createdSpouse = result.nodes[result.nodes.length - 1];
         setFocusNodeId(createdSpouse?.id || sourceId);
         setPartnerSelection(null);
-        setTimeout(() => fitToScreen(result.nodes), 100);
+        setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
         return;
       }
-      if (selectionValue) {
-        const result = treeService.linkPartner(nodes, edges, sourceId, selectionValue, 'Casado/a');
-        saveAndUpdate(result.nodes, result.edges);
+      if (!selectionValue) {
+        setPartnerSelection(null);
+        return;
       }
+      const result = treeService.linkPartner(nodes, edges, sourceId, selectionValue, 'Casado/a');
+      saveAndUpdate(result.nodes, result.edges);
       setFocusNodeId(selectionValue || sourceId);
       setPartnerSelection(null);
-      setTimeout(() => fitToScreen(nodes), 100);
+      setTimeout(() => fitToScreen(nodes), FIT_TO_SCREEN_DELAY);
       return;
     }
 
@@ -616,16 +600,18 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         const createdEx = result.nodes[result.nodes.length - 1];
         setFocusNodeId(createdEx?.id || sourceId);
         setPartnerSelection(null);
-        setTimeout(() => fitToScreen(result.nodes), 100);
+        setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
         return;
       }
-      if (selectionValue) {
-        const result = treeService.linkPartner(nodes, edges, sourceId, selectionValue, 'Divorciado');
-        saveAndUpdate(result.nodes, result.edges);
+      if (!selectionValue) {
+        setPartnerSelection(null);
+        return;
       }
+      const result = treeService.linkPartner(nodes, edges, sourceId, selectionValue, 'Divorciado');
+      saveAndUpdate(result.nodes, result.edges);
       setFocusNodeId(selectionValue || sourceId);
       setPartnerSelection(null);
-      setTimeout(() => fitToScreen(nodes), 100);
+      setTimeout(() => fitToScreen(nodes), FIT_TO_SCREEN_DELAY);
     }
   }, [partnerSelection, nodes, edges, customLinkTypes, normalizedFamilyGroups, undoService, treeService, saveAndUpdate, fitToScreen, confirmAddChild]);
 
@@ -647,14 +633,13 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       const result = treeService.addParents(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
-      setTimeout(() => fitToScreen(result.nodes), 100);
+      setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
     } else if (action === 'add_child') {
       const partners = treeService.getPartners(edges, nodeId);
       const partnerSet = new Set(partners);
-      const candidates = nodes
+      const candidates = [...new Set(nodes
         .filter(node => node.id !== nodeId)
-        .map(node => node.id)
-        .filter((id, index, arr) => arr.indexOf(id) === index);
+        .map(node => node.id))];
       const orderedCandidates = [...partners, ...candidates.filter(id => !partnerSet.has(id))];
       setPartnerSelection({
         mode: 'child',
@@ -693,7 +678,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       const result = treeService.deleteNode(nodes, edges, nodeId);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
-      setTimeout(() => fitToScreen(result.nodes), 100);
+      setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
     } else if (action === 'link') {
       enterLinkingMode(nodeId);
     }
@@ -731,7 +716,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     setIsolatedGroupId(null);
     const organizedNodes = treeService.organizeByLevels(nodes, edges);
     saveAndUpdate(organizedNodes, edges, customLinkTypes, expandedGroups);
-    setTimeout(() => fitToScreen(organizedNodes), 100);
+    setTimeout(() => fitToScreen(organizedNodes), FIT_TO_SCREEN_DELAY);
   }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, undoService]);
 
   // ---- Undo functionality ----
@@ -750,7 +735,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       previousState.customLinkTypes,
       previousState.familyGroups || [],
     );
-    setTimeout(() => fitToScreen(previousState.nodes), 100);
+    setTimeout(() => fitToScreen(previousState.nodes), FIT_TO_SCREEN_DELAY);
   }, [undoService, saveAndUpdate, fitToScreen]);
 
   // ---- Family groups actions ----
