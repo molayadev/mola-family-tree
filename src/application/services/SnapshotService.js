@@ -24,7 +24,7 @@ function getEdgeStyle(edge) {
   const label = resolveEdgeLabel(edge);
   const isBroken = isBrokenLabel(label);
   return {
-    color: isPartner ? (isBroken ? '#9CA3AF' : '#F9A8D4') : '#CBD5E1',
+    color: isPartner ? '#F9A8D4' : '#CBD5E1',
     dash: isPartner ? (isBroken ? '5,5' : '0') : '0',
     isPartner,
   };

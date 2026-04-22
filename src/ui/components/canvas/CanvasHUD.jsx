@@ -1,8 +1,25 @@
 import { useState } from 'react';
 
-import { Target, Download, LogOut, Menu, X, Camera, LayoutGrid, Undo, Link as LinkIcon, Users } from 'lucide-react';
+import { Target, Download, LogOut, Menu, X, Camera, Undo, Link as LinkIcon, Users } from 'lucide-react';
 
-export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, onOrganize, onManageLinkTypes, onOpenFamilyGroups, hasFamilyGroups, onExport, onSnapshot, onLogout, onUndo, canUndo }) {
+export default function CanvasHUD({
+  username,
+  nodeCount,
+  zoom,
+  onFitToScreen,
+  onManageLinkTypes,
+  onOpenFamilyGroups,
+  hasFamilyGroups,
+  onExport,
+  onSnapshot,
+  onLogout,
+  onUndo,
+  canUndo,
+  viewMode,
+  onChangeViewMode,
+  viewModeOptions = [],
+  focusedNodeName = '',
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen(prev => !prev);
@@ -20,6 +37,35 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
         <div className="bg-white/80 backdrop-blur-md p-3 rounded-2xl shadow-sm border border-white pointer-events-auto">
           <h2 className="font-bold text-gray-800">Familia de {username}</h2>
           <p className="text-xs text-gray-500">{nodeCount} familiares • Zoom: {Math.round(zoom * 100)}%</p>
+          {focusedNodeName && (
+            <p className="text-[11px] text-gray-500 mt-1">
+              Nodo activo: <span className="font-semibold text-gray-700">{focusedNodeName}</span>
+            </p>
+          )}
+          {viewModeOptions.length > 0 && (
+            <div className="mt-2 inline-flex flex-wrap rounded-xl border border-gray-200 bg-white p-1 gap-1 max-w-[420px]">
+              {viewModeOptions.map((mode) => (
+                (() => {
+                  const Icon = mode.icon;
+                  return (
+                    <button
+                      key={mode.value}
+                      onClick={() => onChangeViewMode(mode.value)}
+                      title={mode.label}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1.5 ${
+                        viewMode === mode.value
+                          ? 'bg-orange-500 text-white'
+                          : 'text-gray-600 hover:bg-orange-50'
+                      }`}
+                    >
+                      {Icon ? <Icon size={12} /> : null}
+                      <span>{mode.shortLabel || mode.label}</span>
+                    </button>
+                  );
+                })()
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 pointer-events-auto">
@@ -34,9 +80,7 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
           <button onClick={onFitToScreen} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Centrar Vista">
             <Target size={20} className="text-gray-600" />
           </button>
-          <button onClick={onOrganize} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Organizar por niveles">
-            <LayoutGrid size={20} className="text-gray-600" />
-          </button>
+          {/* Organizar oculto temporalmente */}
           <button onClick={onOpenFamilyGroups} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Grupos familiares">
             <Users size={20} className={`${hasFamilyGroups ? 'text-orange-600' : 'text-gray-600'}`} />
           </button>
@@ -78,7 +122,44 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
               <div className="px-3 py-2 border-b border-gray-100 mb-1">
                 <p className="font-bold text-gray-800 text-sm">Familia de {username}</p>
                 <p className="text-[10px] text-gray-500">{nodeCount} familiares • Zoom: {Math.round(zoom * 100)}%</p>
+                {focusedNodeName && (
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Activo: <span className="font-semibold text-gray-700">{focusedNodeName}</span>
+                  </p>
+                )}
               </div>
+
+              {viewModeOptions.length > 0 && (
+                <div className="px-2 pb-2">
+                  <p className="text-[10px] text-gray-500 mb-2 px-1">
+                    Vista: <span className="font-semibold text-gray-700">{viewModeOptions.find(mode => mode.value === viewMode)?.label || viewMode}</span>
+                  </p>
+                  <div
+                    className="grid gap-2 rounded-xl border border-gray-200 bg-white p-2"
+                    style={{ gridTemplateColumns: `repeat(${Math.min(3, viewModeOptions.length)}, minmax(0, 1fr))` }}
+                  >
+                    {viewModeOptions.map((mode) => {
+                      const Icon = mode.icon;
+                      return (
+                        <button
+                          key={mode.value}
+                          onClick={() => handleAction(() => onChangeViewMode(mode.value))}
+                          title={mode.label}
+                          aria-label={mode.label}
+                          className={`min-h-[56px] rounded-xl text-[10px] font-bold transition-colors flex flex-col items-center justify-center gap-1 ${
+                            viewMode === mode.value
+                              ? 'bg-orange-500 text-white'
+                              : 'text-gray-600 hover:bg-orange-50'
+                          }`}
+                        >
+                          {Icon ? <Icon size={16} /> : null}
+                          <span>{mode.shortLabel || mode.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={() => handleAction(onUndo)}
@@ -97,13 +178,7 @@ export default function CanvasHUD({ username, nodeCount, zoom, onFitToScreen, on
                 <span className="text-sm text-gray-700">Centrar vista</span>
               </button>
 
-              <button
-                onClick={() => handleAction(onOrganize)}
-                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left"
-              >
-                <LayoutGrid size={18} className="text-gray-600" />
-                <span className="text-sm text-gray-700">Organizar por niveles</span>
-              </button>
+              {/* Organizar oculto temporalmente */}
 
               <button
                 onClick={() => handleAction(onOpenFamilyGroups)}

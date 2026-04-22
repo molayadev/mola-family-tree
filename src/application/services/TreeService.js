@@ -121,6 +121,26 @@ export class TreeService {
     return { nodes: newNodes, edges: newEdges };
   }
 
+  linkPartner(nodes, edges, sourceId, targetId, label = 'Casado/a') {
+    if (!sourceId || !targetId || sourceId === targetId) return { nodes, edges };
+    const sourceExists = nodes.some(n => n.id === sourceId);
+    const targetExists = nodes.some(n => n.id === targetId);
+    if (!sourceExists || !targetExists) return { nodes, edges };
+
+    const alreadyLinked = edges.some((edge) => {
+      if (!isPartnerEdgeType(edge.type)) return false;
+      const sameDirection = edge.from === sourceId && edge.to === targetId;
+      const inverseDirection = edge.from === targetId && edge.to === sourceId;
+      return sameDirection || inverseDirection;
+    });
+    if (alreadyLinked) return { nodes, edges };
+
+    return {
+      nodes: [...nodes],
+      edges: [...edges, createEdge({ from: sourceId, to: targetId, type: EDGE_TYPES.PARTNER, label })],
+    };
+  }
+
   deleteNode(nodes, edges, nodeId) {
     return {
       nodes: nodes.filter(n => n.id !== nodeId),

@@ -6,6 +6,30 @@ export class LocalStorageAdapter extends StoragePort {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"users": {}}');
   }
 
+  #normalizeTreeData(record) {
+    const treeData = record?.treeData || record || {};
+    return {
+      nodes: Array.isArray(treeData.nodes) ? treeData.nodes : [],
+      edges: Array.isArray(treeData.edges) ? treeData.edges : [],
+      customLinkTypes: Array.isArray(treeData.customLinkTypes) ? treeData.customLinkTypes : [],
+      familyGroups: Array.isArray(treeData.familyGroups) ? treeData.familyGroups : [],
+    };
+  }
+
+  #buildStoredUserRecord(password, nodes, edges, customLinkTypes = [], familyGroups = []) {
+    const treeData = { nodes, edges, customLinkTypes, familyGroups };
+    return {
+      password,
+      // Legacy-compatible flattened shape
+      nodes,
+      edges,
+      customLinkTypes,
+      familyGroups,
+      // Current app shape
+      treeData,
+    };
+  }
+
   #saveDb(db) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   }
@@ -20,25 +44,23 @@ export class LocalStorageAdapter extends StoragePort {
 
   getUserData(username) {
     const user = this.#getDb().users[username];
-    return user || null;
+    if (!user) return null;
+    return {
+      password: user.password || '',
+      treeData: this.#normalizeTreeData(user),
+    };
   }
 
   saveUserData(username, password, nodes, edges, customLinkTypes = [], familyGroups = []) {
     const db = this.#getDb();
     const currentPass = password ?? db.users[username]?.password;
-    db.users[username] = {
-      password: currentPass,
-      treeData: { nodes, edges, customLinkTypes, familyGroups },
-    };
+    db.users[username] = this.#buildStoredUserRecord(currentPass, nodes, edges, customLinkTypes, familyGroups);
     this.#saveDb(db);
   }
 
   importUserData(username, password, nodes, edges, customLinkTypes = [], familyGroups = []) {
     const db = this.#getDb();
-    db.users[username] = {
-      password: password || '1234',
-      treeData: { nodes, edges, customLinkTypes, familyGroups },
-    };
+    db.users[username] = this.#buildStoredUserRecord(password || '1234', nodes, edges, customLinkTypes, familyGroups);
     this.#saveDb(db);
   }
 }

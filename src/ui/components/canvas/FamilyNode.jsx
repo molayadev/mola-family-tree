@@ -90,6 +90,9 @@ export default function FamilyNode({
       <rect x="-40" y="-36" width="80" height="104" fill="transparent" />
 
       <circle r="32" fill="black" opacity="0.1" cy="4" />
+      {isSelected && (
+        <circle r="35" fill="none" stroke="#FB923C" strokeWidth="2.5" opacity="0.35" />
+      )}
       <circle
         r="30"
         className={`${isDimmed ? 'fill-gray-200' : (deceased ? 'fill-gray-200' : style.bg)} ${strokeClass} transition-all`}
