@@ -49,7 +49,6 @@ export default function LupaBagNode({ bag, onClick }) {
         y="-6"
         textAnchor="middle"
         className="text-[11px] pointer-events-none select-none"
-        style={{ fontSize: '11px' }}
       >
         {Array.from({ length: Math.min(memberCount, 4) }, (_, i) => (
           <tspan key={i} dx={i === 0 ? 0 : 4}>👤</tspan>

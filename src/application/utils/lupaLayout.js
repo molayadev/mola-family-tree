@@ -143,11 +143,13 @@ export function computeLupaLevel(nodes, edges, anchorNodeIds) {
 
   const positions = new Map();
 
+  /** Returns the horizontal offset to centre item `index` of `total` with a given `gap`. */
+  const centeredOffset = (index, total, gap) => (index - (total - 1) / 2) * gap;
+
   // Anchor node row
   const anchorCount = anchorNodeIds.length;
   anchorNodeIds.forEach((id, i) => {
-    const offset = (i - (anchorCount - 1) / 2) * ANCHOR_GAP;
-    positions.set(id, { x: originX + offset, y: originY });
+    positions.set(id, { x: originX + centeredOffset(i, anchorCount, ANCHOR_GAP), y: originY });
   });
 
   // Child row (regular + bag)
@@ -157,9 +159,8 @@ export function computeLupaLevel(nodes, edges, anchorNodeIds) {
   ];
   const childCount = childItems.length;
   childItems.forEach((item, i) => {
-    const offset = (i - (childCount - 1) / 2) * CHILD_GAP;
     positions.set(item.id, {
-      x: originX + offset,
+      x: originX + centeredOffset(i, childCount, CHILD_GAP),
       y: originY + CHILD_ROW_OFFSET,
     });
   });
