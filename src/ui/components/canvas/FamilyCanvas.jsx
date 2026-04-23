@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Move, Link as LinkIcon, X, Eye, Pencil, GitBranch, ArrowUp, ArrowDown, Users, Venus, Mars, CircleDot } from 'lucide-react';
+import { Move, Link as LinkIcon, X, Eye, Pencil, GitBranch, ArrowUp, ArrowDown, Users, Venus, Mars, CircleDot, ArrowLeft, Search } from 'lucide-react';
 import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../../domain/config/constants';
 import { generateId } from '../../../domain/entities/Node';
 import { useCanvas } from '../../../application/hooks/useCanvas';
 import { downloadTreeSnapshot } from '../../../application/services/SnapshotService';
+import { computeLupaLevel, getLupaInitialAnchor, buildLupaStackLabel } from '../../../application/utils/lupaLayout';
 import CanvasHUD from './CanvasHUD';
 import ZoomControls from './ZoomControls';
 import FamilyNode from './FamilyNode';
 import FamilyEdge from './FamilyEdge';
+import LupaBagNode from './LupaBagNode';
 import NodeActionsModal from '../modals/NodeActionsModal';
 import PartnerSelectionModal from '../modals/PartnerSelectionModal';
 import LinkTypeSelectionModal from '../modals/LinkTypeSelectionModal';
@@ -644,6 +646,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [collapsedGroupMenu, setCollapsedGroupMenu] = useState(null); // { groupId, x, y }
   const [organizeModalOpen, setOrganizeModalOpen] = useState(false);
   const [organizationMode, setOrganizationMode] = useState('none');
+  const [lupaStack, setLupaStack] = useState([]);
 
   // Linking mode state
   const [linkingMode, setLinkingMode] = useState(null); // { sourceId } or null
@@ -755,6 +758,95 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     () => visibleNodes.map(node => renderedNodeById.get(node.id) || node),
     [visibleNodes, renderedNodeById],
   );
+
+  // ── Lupa mode data ───────────────────────────────────────────────────────
+  const lupaData = useMemo(() => {
+    if (organizationMode !== 'lupa') return null;
+
+    const currentAnchorIds = lupaStack.length > 0
+      ? lupaStack[lupaStack.length - 1].anchorNodeIds
+      : getLupaInitialAnchor(nodes, edges, focusNodeId);
+
+    return computeLupaLevel(nodes, edges, currentAnchorIds);
+  }, [organizationMode, lupaStack, nodes, edges, focusNodeId]);
+
+  // Nodes to display in the lupa view (with overridden positions)
+  const lupaVisibleNodes = useMemo(() => {
+    if (!lupaData) return [];
+    return nodes
+      .filter((n) => lupaData.visibleRegularNodeIds.has(n.id))
+      .map((n) => {
+        const pos = lupaData.positions.get(n.id);
+        return pos ? { ...n, ...pos } : n;
+      });
+  }, [lupaData, nodes]);
+
+  // Positioned bag nodes
+  const lupaBagNodes = useMemo(() => {
+    if (!lupaData) return [];
+    return lupaData.bagNodes.map((bag) => {
+      const pos = lupaData.positions.get(bag.id);
+      return pos ? { ...bag, ...pos } : bag;
+    });
+  }, [lupaData]);
+
+  // Edges to display in lupa mode
+  const lupaRenderedEdges = useMemo(() => {
+    if (!lupaData) return [];
+    const nodeMap = new Map(lupaVisibleNodes.map((n) => [n.id, n]));
+
+    const result = [];
+    edges.forEach((edge) => {
+      if (!lupaData.visibleEdgeIds.has(edge.id)) return;
+      const fromNode = nodeMap.get(edge.from);
+      const toNode = nodeMap.get(edge.to);
+      if (!fromNode || !toNode) return;
+      result.push({ edge, fromNode, toNode, renderKey: `lupa-${edge.id}` });
+    });
+    return result;
+  }, [lupaData, edges, lupaVisibleNodes]);
+
+  // Synthetic bag connector edges (anchor midpoint → bag)
+  const lupaBagEdges = useMemo(() => {
+    if (!lupaData) return [];
+    const nodeMap = new Map(lupaVisibleNodes.map((n) => [n.id, n]));
+    const bagPosMap = new Map(lupaBagNodes.map((b) => [b.id, b]));
+
+    return lupaData.syntheticBagEdges
+      .map((bagEdge) => {
+        const bag = bagPosMap.get(bagEdge.toBagId);
+        if (!bag) return null;
+
+        // Compute anchor midpoint as the "from" position
+        const anchorNodesForEdge = bagEdge.fromAnchorIds
+          .map((id) => nodeMap.get(id))
+          .filter(Boolean);
+        if (anchorNodesForEdge.length === 0) return null;
+
+        const fromX = anchorNodesForEdge.reduce((s, n) => s + n.x, 0) / anchorNodesForEdge.length;
+        const fromY = anchorNodesForEdge.reduce((s, n) => s + n.y, 0) / anchorNodesForEdge.length;
+
+        return {
+          fromNode: { x: fromX, y: fromY },
+          toNode: { x: bag.x, y: bag.y },
+          renderKey: bagEdge.id,
+        };
+      })
+      .filter(Boolean);
+  }, [lupaData, lupaVisibleNodes, lupaBagNodes]);
+
+  // Nodes used by fitToScreen in lupa mode
+  const lupaFitNodes = useMemo(() => {
+    if (!lupaData) return [];
+    const bagVirtual = lupaBagNodes.map((b) => ({ id: b.id, x: b.x, y: b.y }));
+    return [...lupaVisibleNodes, ...bagVirtual];
+  }, [lupaData, lupaVisibleNodes, lupaBagNodes]);
+
+  // Previous lupa level label (for "Volver" button)
+  const lupaPrevLabel = useMemo(() => {
+    if (lupaStack.length === 0) return null;
+    return lupaStack[lupaStack.length - 1].label || 'Atrás';
+  }, [lupaStack]);
 
   const collapsedGroupByNodeId = useMemo(() => {
     if (groupDraft) return new Map();
@@ -979,12 +1071,16 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   } = useCanvas();
 
   const handleCenterCurrentView = useCallback(() => {
+    if (organizationMode === 'lupa') {
+      fitToScreen(lupaFitNodes.length > 0 ? lupaFitNodes : nodes);
+      return;
+    }
     if (lineageViewMode === 'radial' && radialFitBoundsNodes) {
       fitToScreen(radialFitBoundsNodes);
       return;
     }
     fitToScreen(displayedVisibleNodes.length > 0 ? displayedVisibleNodes : nodes);
-  }, [lineageViewMode, radialFitBoundsNodes, fitToScreen, displayedVisibleNodes, nodes]);
+  }, [organizationMode, lupaFitNodes, lineageViewMode, radialFitBoundsNodes, fitToScreen, displayedVisibleNodes, nodes]);
 
   // Initialize view on mount
   useEffect(() => {
@@ -998,6 +1094,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   useEffect(() => {
     if (!lineageVisibility.resolvedFocusNodeId) return;
     if (groupDraft) return;
+    if (organizationMode === 'lupa') return; // lupa handles its own fit
     const nodesForFit = lineageViewMode === 'radial'
       ? radialFitBoundsNodes
       : displayedVisibleNodes;
@@ -1010,10 +1107,19 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     parentChoiceByChildId,
     isolatedGroupId,
     groupDraft,
+    organizationMode,
     displayedVisibleNodes,
     radialFitBoundsNodes,
     fitToScreen,
   ]);
+
+  // Fit to screen whenever the lupa level changes
+  useEffect(() => {
+    if (organizationMode !== 'lupa') return;
+    if (lupaFitNodes.length === 0) return;
+    const timer = setTimeout(() => fitToScreen(lupaFitNodes), FIT_TO_SCREEN_DELAY);
+    return () => clearTimeout(timer);
+  }, [organizationMode, lupaStack, lupaFitNodes, fitToScreen]);
 
   useEffect(() => {
     if (nodes.length === 0) return;
@@ -1083,6 +1189,22 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     openActionsModal(sourceNodeId, 'links', edgeId);
     selectGroupFromNode(sourceNodeId);
   }, [lineageViewMode, openActionsModal, selectGroupFromNode]);
+
+  // ── Lupa navigation ────────────────────────────────────────────────────────
+  const handleLupaBagClick = useCallback((bag) => {
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const label = buildLupaStackLabel(bag.memberNodeIds, nodeMap);
+    setLupaStack((prev) => [...prev, { anchorNodeIds: bag.memberNodeIds, label }]);
+  }, [nodes]);
+
+  const handleLupaBack = useCallback(() => {
+    setLupaStack((prev) => prev.slice(0, -1));
+  }, []);
+
+  const handleLupaExit = useCallback(() => {
+    setLupaStack([]);
+    setOrganizationMode('none');
+  }, []);
 
   const focusVisibleNodes = useCallback((nextGroups, nextIsolatedGroupId = isolatedGroupId) => {
     const groupHidden = computeHiddenNodeIds(nodes, nextGroups, nextIsolatedGroupId);
@@ -1344,7 +1466,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
   const handleApplyOrganization = useCallback((mode) => {
     if (!canUseOrganize) return;
-    if (!['levels', 'atomic', 'aizado'].includes(mode)) return;
+    if (!['levels', 'atomic', 'aizado', 'lupa'].includes(mode)) return;
 
     undoService.saveState(
       nodes,
@@ -1356,6 +1478,13 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
     if (mode === 'atomic') {
       setOrganizationMode('atomic');
+      setOrganizeModalOpen(false);
+      return;
+    }
+
+    if (mode === 'lupa') {
+      setLupaStack([]);
+      setOrganizationMode('lupa');
       setOrganizeModalOpen(false);
       return;
     }
@@ -1963,7 +2092,65 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
       <svg className="w-full h-full pointer-events-none">
         <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
-          {lineageViewMode !== 'radial' && renderedEdges.map(({ edge, fromNode, toNode, renderKey }) => {
+          {/* ── Lupa mode rendering ─────────────────────────────────────────── */}
+          {organizationMode === 'lupa' && lupaData && (
+            <>
+              {/* Regular edges (partner + single-parent → regular child) */}
+              {lupaRenderedEdges.map(({ edge, fromNode, toNode, renderKey }) => (
+                <FamilyEdge
+                  key={renderKey}
+                  edge={edge}
+                  fromNode={fromNode}
+                  toNode={toNode}
+                  onLineClick={() => {}}
+                  curveMode="geometric"
+                />
+              ))}
+
+              {/* Synthetic lines from anchor midpoint to each bag */}
+              {lupaBagEdges.map(({ fromNode, toNode, renderKey }) => {
+                const midY = (fromNode.y + toNode.y) / 2;
+                const d = `M ${fromNode.x} ${fromNode.y} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - 34}`;
+                return (
+                  <path
+                    key={renderKey}
+                    d={d}
+                    stroke="#16a34a"
+                    strokeWidth="1.5"
+                    fill="none"
+                    strokeDasharray="5,3"
+                  />
+                );
+              })}
+
+              {/* Regular nodes (anchor + simple children) */}
+              {lupaVisibleNodes.map((node) => (
+                <FamilyNode
+                  key={node.id}
+                  node={node}
+                  isSelected={false}
+                  isDimmed={false}
+                  isLinkTarget={false}
+                  isGroupMemberHighlighted={false}
+                  groupHighlightColor={null}
+                  defaultGroupColor={null}
+                  onPointerDown={() => {}}
+                />
+              ))}
+
+              {/* Bag nodes */}
+              {lupaBagNodes.map((bag) => (
+                <LupaBagNode
+                  key={bag.id}
+                  bag={bag}
+                  onClick={handleLupaBagClick}
+                />
+              ))}
+            </>
+          )}
+
+          {/* ── Normal (non-lupa) rendering ─────────────────────────────────── */}
+          {organizationMode !== 'lupa' && lineageViewMode !== 'radial' && renderedEdges.map(({ edge, fromNode, toNode, renderKey }) => {
             return (
               <FamilyEdge
                 key={renderKey}
@@ -1976,7 +2163,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             );
           })}
 
-          {[...collapsedGroupBubbleMap.values()].map((bubble) => (
+          {organizationMode !== 'lupa' && [...collapsedGroupBubbleMap.values()].map((bubble) => (
             <g
               key={bubble.id}
               className="pointer-events-auto cursor-pointer"
@@ -2002,7 +2189,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             </g>
           ))}
 
-          {controlsRenderNode && showTreeControls && (
+          {organizationMode !== 'lupa' && controlsRenderNode && showTreeControls && (
             <g
               className="pointer-events-auto"
               transform={`translate(${controlsRenderNode.x}, ${controlsRenderNode.y - 56})`}
@@ -2255,7 +2442,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             );
           })()}
 
-          {lineageViewMode !== 'radial' && displayedVisibleNodes.map(node => (
+          {organizationMode !== 'lupa' && lineageViewMode !== 'radial' && displayedVisibleNodes.map(node => (
             <FamilyNode
               key={node.id}
               node={node}
@@ -2274,7 +2461,44 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         </g>
       </svg>
 
-      {nodes.length > 1 && (
+      {/* ── Lupa navigation overlay ────────────────────────────────────────── */}
+      {organizationMode === 'lupa' && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-green-200 px-3 py-2">
+            <Search size={14} className="text-green-600 shrink-0" />
+            <span className="text-xs font-bold text-green-800 whitespace-nowrap">
+              Orden Lupa
+              {lupaStack.length > 0 && (
+                <span className="ml-1 text-green-600">
+                  {' › '}{lupaStack[lupaStack.length - 1].label}
+                </span>
+              )}
+            </span>
+
+            {lupaStack.length > 0 && (
+              <button
+                onClick={handleLupaBack}
+                className="min-h-[36px] min-w-[36px] flex items-center gap-1.5 px-2 py-1 rounded-xl bg-green-50 hover:bg-green-100 active:scale-95 transition-all text-green-800 text-xs font-semibold"
+                title={`Volver a: ${lupaPrevLabel}`}
+              >
+                <ArrowLeft size={13} />
+                <span className="hidden sm:inline">Volver</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleLupaExit}
+              className="min-h-[36px] min-w-[36px] flex items-center gap-1.5 px-2 py-1 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all text-gray-600 text-xs font-semibold"
+              title="Salir del modo Lupa"
+            >
+              <X size={13} />
+              <span className="hidden sm:inline">Salir</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {nodes.length > 1 && organizationMode !== 'lupa' && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-gray-400 text-xs pointer-events-none bg-white/50 px-3 py-1 rounded-full whitespace-nowrap">
           <Move size={12} className="inline mr-1" /> Arrastra o toca las líneas de unión
         </div>

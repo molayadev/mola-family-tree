@@ -1,4 +1,4 @@
-import { Layers3, Atom, WandSparkles, Undo, X } from 'lucide-react';
+import { Layers3, Atom, WandSparkles, Search, Undo, X } from 'lucide-react';
 
 const OPTIONS = [
   {
@@ -19,6 +19,12 @@ const OPTIONS = [
     // "Aizado" follows the exact product wording requested for this mode.
     description: 'Distribución despejada para facilitar foco y expansión.',
     icon: WandSparkles,
+  },
+  {
+    key: 'lupa',
+    title: 'Orden Lupa',
+    description: 'Navega el árbol por núcleos: los hijos con familia propia se agrupan en bolsas y puedes explorarlos con un efecto de lupa.',
+    icon: Search,
   },
 ];
 
