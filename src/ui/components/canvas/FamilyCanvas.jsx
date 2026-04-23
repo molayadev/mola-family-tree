@@ -656,6 +656,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [linkTarget, setLinkTarget] = useState(null);    // target nodeId or null
 
   const autoGroupsInitializedRef = useRef(false);
+  const pendingViewCenterRef = useRef(false);
 
   const normalizedFamilyGroups = useMemo(() => normalizeFamilyGroups(familyGroups, nodes), [familyGroups, nodes]);
 
@@ -1324,6 +1325,55 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     fitToScreen(displayedVisibleNodes.length > 0 ? displayedVisibleNodes : nodes);
   }, [organizationMode, lupaFitNodes, lineageViewMode, radialFitBoundsNodes, fitToScreen, displayedVisibleNodes, nodes]);
 
+  const keepNodesInViewport = useCallback((targetNodes) => {
+    if (!Array.isArray(targetNodes) || targetNodes.length === 0) return;
+
+    const isMobile = window.innerWidth < 768;
+    const horizontalMargin = 20;
+    const topMargin = isMobile ? 92 : 78;
+    const bottomMargin = isMobile ? 84 : 40;
+
+    setTransform((prev) => {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      const nodeScreenRadius = Math.max(26, 32 * prev.k);
+      targetNodes.forEach((node) => {
+        const screenX = prev.x + (node.x * prev.k);
+        const screenY = prev.y + (node.y * prev.k);
+        minX = Math.min(minX, screenX - nodeScreenRadius);
+        maxX = Math.max(maxX, screenX + nodeScreenRadius);
+        minY = Math.min(minY, screenY - nodeScreenRadius);
+        maxY = Math.max(maxY, screenY + nodeScreenRadius);
+      });
+
+      if (!Number.isFinite(minX) || !Number.isFinite(minY)) return prev;
+
+      const viewportLeft = horizontalMargin;
+      const viewportRight = window.innerWidth - horizontalMargin;
+      const viewportTop = topMargin;
+      const viewportBottom = window.innerHeight - bottomMargin;
+
+      let deltaX = 0;
+      let deltaY = 0;
+
+      if (minX < viewportLeft) deltaX = viewportLeft - minX;
+      if (maxX + deltaX > viewportRight) deltaX += viewportRight - (maxX + deltaX);
+
+      if (minY < viewportTop) deltaY = viewportTop - minY;
+      if (maxY + deltaY > viewportBottom) deltaY += viewportBottom - (maxY + deltaY);
+
+      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return prev;
+      return {
+        ...prev,
+        x: prev.x + deltaX,
+        y: prev.y + deltaY,
+      };
+    });
+  }, [setTransform]);
+
   // Initialize view on mount
   useEffect(() => {
     if (nodes.length > 0) {
@@ -1344,14 +1394,13 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     const timer = setTimeout(() => fitToScreen(nodesForFit), FIT_TO_SCREEN_DELAY);
     return () => clearTimeout(timer);
   }, [
-    lineageVisibility.resolvedFocusNodeId,
     lineageViewMode,
+    relativesBranchMode,
     parentChoiceByChildId,
     isolatedGroupId,
     groupDraft,
     organizationMode,
-    displayedVisibleNodes,
-    radialFitBoundsNodes,
+    lineageVisibility.resolvedFocusNodeId,
     fitToScreen,
   ]);
 
@@ -1361,7 +1410,14 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     if (lupaFitNodes.length === 0) return;
     const timer = setTimeout(() => fitToScreen(lupaFitNodes), FIT_TO_SCREEN_DELAY);
     return () => clearTimeout(timer);
-  }, [organizationMode, lupaStack, lupaFitNodes, fitToScreen]);
+  }, [organizationMode, lupaStack, fitToScreen]);
+
+  useEffect(() => {
+    if (!pendingViewCenterRef.current) return;
+    pendingViewCenterRef.current = false;
+    const timer = setTimeout(() => handleCenterCurrentView(), FIT_TO_SCREEN_DELAY);
+    return () => clearTimeout(timer);
+  }, [lineageViewMode, relativesBranchMode, organizationMode, handleCenterCurrentView]);
 
   useEffect(() => {
     if (nodes.length === 0) return;
@@ -1481,8 +1537,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     setPartnerSelection(null);
     const createdChild = result.nodes[result.nodes.length - 1];
     if (createdChild) setFocusNodeId(createdChild.id);
-    setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
-  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, undoService]);
+    if (createdChild) setTimeout(() => keepNodesInViewport([createdChild]), FIT_TO_SCREEN_DELAY);
+  }, [nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, undoService, keepNodesInViewport]);
 
   const handleSelectPartnerAction = useCallback((selectionValue) => {
     if (!partnerSelection) return;
@@ -1506,9 +1562,14 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         );
         saveAndUpdate(result.nodes, result.edges);
         const createdChild = result.nodes[result.nodes.length - 1];
+        const nodesToKeepVisible = [];
+        if (createdPartner) nodesToKeepVisible.push(createdPartner);
+        if (createdChild) nodesToKeepVisible.push(createdChild);
         setFocusNodeId(createdChild?.id || sourceId);
         setPartnerSelection(null);
-        setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
+        if (nodesToKeepVisible.length > 0) {
+          setTimeout(() => keepNodesInViewport(nodesToKeepVisible), FIT_TO_SCREEN_DELAY);
+        }
         return;
       }
       confirmAddChild(sourceId, selectionValue);
@@ -1523,7 +1584,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         const createdSpouse = result.nodes[result.nodes.length - 1];
         setFocusNodeId(createdSpouse?.id || sourceId);
         setPartnerSelection(null);
-        setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
+        if (createdSpouse) setTimeout(() => keepNodesInViewport([createdSpouse]), FIT_TO_SCREEN_DELAY);
         return;
       }
       if (!selectionValue) {
@@ -1534,7 +1595,6 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       saveAndUpdate(result.nodes, result.edges);
       setFocusNodeId(selectionValue || sourceId);
       setPartnerSelection(null);
-      setTimeout(() => fitToScreen(nodes), FIT_TO_SCREEN_DELAY);
       return;
     }
 
@@ -1546,7 +1606,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         const createdEx = result.nodes[result.nodes.length - 1];
         setFocusNodeId(createdEx?.id || sourceId);
         setPartnerSelection(null);
-        setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
+        if (createdEx) setTimeout(() => keepNodesInViewport([createdEx]), FIT_TO_SCREEN_DELAY);
         return;
       }
       if (!selectionValue) {
@@ -1557,9 +1617,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       saveAndUpdate(result.nodes, result.edges);
       setFocusNodeId(selectionValue || sourceId);
       setPartnerSelection(null);
-      setTimeout(() => fitToScreen(nodes), FIT_TO_SCREEN_DELAY);
     }
-  }, [partnerSelection, nodes, edges, customLinkTypes, normalizedFamilyGroups, undoService, treeService, saveAndUpdate, fitToScreen, confirmAddChild]);
+  }, [partnerSelection, nodes, edges, customLinkTypes, normalizedFamilyGroups, undoService, treeService, saveAndUpdate, confirmAddChild, keepNodesInViewport]);
 
   const enterLinkingMode = useCallback((sourceId) => {
     closeActionsModal();
@@ -1579,7 +1638,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       const result = treeService.addParents(nodes, edges, sourceNode);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
-      setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
+      const createdParents = result.nodes.slice(-2);
+      if (createdParents.length > 0) setTimeout(() => keepNodesInViewport(createdParents), FIT_TO_SCREEN_DELAY);
     } else if (action === 'add_child') {
       const partners = treeService.getPartners(edges, nodeId);
       const partnerSet = new Set(partners);
@@ -1624,7 +1684,6 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       const result = treeService.deleteNode(nodes, edges, nodeId);
       saveAndUpdate(result.nodes, result.edges);
       closeActionsModal();
-      setTimeout(() => fitToScreen(result.nodes), FIT_TO_SCREEN_DELAY);
     } else if (action === 'group_children') {
       const validNodeIds = new Set(nodes.map(node => node.id));
       const childIds = [...new Set(
@@ -1675,7 +1734,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     } else if (action === 'link') {
       enterLinkingMode(nodeId);
     }
-  }, [actionsModal.nodeId, nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, fitToScreen, closeActionsModal, enterLinkingMode, undoService, focusVisibleNodes]);
+  }, [actionsModal.nodeId, nodes, edges, customLinkTypes, normalizedFamilyGroups, treeService, saveAndUpdate, closeActionsModal, enterLinkingMode, undoService, focusVisibleNodes, keepNodesInViewport]);
 
   const handleUpdateNode = useCallback((nodeId, newData) => {
     const updatedNodes = treeService.updateNode(nodes, nodeId, newData);
@@ -1973,6 +2032,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         setSelectedNodeId(firstNodeId);
       }
       setRelativesBranchMode(null);
+      pendingViewCenterRef.current = true;
       setLineageViewMode(nextMode);
       return;
     }
@@ -2017,6 +2077,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       }
     }
 
+    pendingViewCenterRef.current = true;
     setLineageViewMode(nextMode);
   }, [selectedNodeId, focusNodeId, nodes, edges, parentChoiceByChildId]);
 

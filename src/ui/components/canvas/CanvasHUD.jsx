@@ -264,6 +264,18 @@ export default function CanvasHUD({
           </>
         )}
       </div>
+
+      {/* Mobile center-view FAB – always visible */}
+      <div className="md:hidden absolute bottom-4 right-4 z-20 pointer-events-auto">
+        <button
+          onClick={onFitToScreen}
+          className="w-12 h-12 bg-white hover:bg-orange-50 active:scale-95 rounded-full shadow-lg border border-gray-100 flex items-center justify-center transition-all"
+          title="Centrar vista"
+          aria-label="Centrar vista"
+        >
+          <Target size={20} className="text-gray-700" />
+        </button>
+      </div>
     </>
   );
 }
