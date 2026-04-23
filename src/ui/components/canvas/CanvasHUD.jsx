@@ -204,16 +204,6 @@ export default function CanvasHUD({
                 <span className="text-sm text-gray-700">Centrar vista</span>
               </button>
 
-              {canOrganize && (
-                <button
-                  onClick={() => handleAction(onOpenOrganize)}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left"
-                >
-                  <Sparkles size={18} className="text-orange-500" />
-                  <span className="text-sm text-gray-700">Organizar árbol</span>
-                </button>
-              )}
-
               <button
                 onClick={() => handleAction(onToggleEdgeCurveMode)}
                 className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left"

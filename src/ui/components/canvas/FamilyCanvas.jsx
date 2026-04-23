@@ -2082,7 +2082,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [selectedNodeId, focusNodeId, nodes, edges, parentChoiceByChildId]);
 
   const handleSelectNode = useCallback((nodeId) => {
-    if (lineageViewMode !== 'relatives') return;
+    if (lineageViewMode !== 'relatives' && lineageViewMode !== 'all') return;
     setSelectedNodeId(nodeId);
     selectGroupFromNode(nodeId);
   }, [lineageViewMode, selectGroupFromNode]);
@@ -2122,10 +2122,13 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     () => buildNodeParentControls(nodes, edges, controlsNode?.id || null, parentChoiceByChildId),
     [nodes, edges, controlsNode?.id, parentChoiceByChildId],
   );
-  const showTreeControls = Boolean(lineageViewMode === 'relatives' && controlsNode);
+  const showTreeControls = Boolean((lineageViewMode === 'relatives' || lineageViewMode === 'all') && controlsNode);
   const isControlsNodeActive = Boolean(
     controlsNode
-    && controlsNode.id === lineageVisibility.resolvedFocusNodeId,
+    && (
+      lineageViewMode === 'all'
+      || controlsNode.id === lineageVisibility.resolvedFocusNodeId
+    ),
   );
   const showTreeParentFilters = Boolean(isControlsNodeActive && nodeParentControls.options.length > 0);
   const showTreeEyeButton = Boolean(showTreeControls && !isControlsNodeActive);
@@ -2525,58 +2528,50 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             .filter((nucleus) => nucleus.parentIds.every(parentId => !effectiveHiddenNodeIds.has(parentId)))
             .map((nucleus) => {
             const isCollapsed = collapsedParentNucleusKeys.has(nucleus.key);
-            const bubbleY = nucleus.y + 74;
+            const toggleNucleus = (e) => {
+              e.stopPropagation();
+              if (e.type === 'mousedown' && Date.now() - stateRef.current.lastTouchEndTime < 500) return;
+              toggleParentNucleusCollapse(nucleus.key);
+            };
             return (
-              <g key={`parent-nucleus-${nucleus.key}`} className="pointer-events-auto">
-                <g
-                  className="cursor-pointer"
-                  onMouseDown={(e) => { e.stopPropagation(); toggleParentNucleusCollapse(nucleus.key); }}
-                  onTouchStart={(e) => { e.stopPropagation(); toggleParentNucleusCollapse(nucleus.key); }}
-                >
-                  <circle cx={nucleus.x} cy={nucleus.y + 28} r="14" fill="#ffffff" stroke="#111827" strokeWidth="1.5" />
-                  <text
-                    x={nucleus.x}
-                    y={nucleus.y + 33}
-                    textAnchor="middle"
-                    className="text-[14px] font-bold fill-gray-800 pointer-events-none select-none"
-                  >
-                    {isCollapsed ? '+' : '-'}
-                  </text>
-                </g>
-
-                {isCollapsed && (
-                  <g
-                    className="cursor-pointer"
-                    onMouseDown={(e) => { e.stopPropagation(); toggleParentNucleusCollapse(nucleus.key); }}
-                    onTouchStart={(e) => { e.stopPropagation(); toggleParentNucleusCollapse(nucleus.key); }}
-                  >
-                    <rect
-                      x={nucleus.x - 100}
-                      y={bubbleY - 24}
-                      width="200"
-                      height="56"
-                      rx="14"
-                      fill="#ffffff"
-                      stroke="#16a34a"
-                      strokeWidth="1.8"
-                    />
+              <g key={`parent-nucleus-${nucleus.key}`} className="pointer-events-auto cursor-pointer" onMouseDown={toggleNucleus} onTouchStart={toggleNucleus}>
+                {isCollapsed ? (
+                  <>
+                    <circle cx={nucleus.x} cy={nucleus.y + 28} r="28" fill="white" stroke="#16a34a" strokeWidth="2.5" />
                     <text
                       x={nucleus.x}
-                      y={bubbleY - 4}
+                      y={nucleus.y + 23}
                       textAnchor="middle"
-                      className="text-[10px] font-semibold fill-green-800 pointer-events-none select-none"
+                      fontSize="19"
+                      fontWeight="700"
+                      fill="#15803d"
+                      className="pointer-events-none select-none"
                     >
-                      {nucleus.label.length > 28 ? `${nucleus.label.slice(0, 27)}…` : nucleus.label}
+                      {nucleus.count}
                     </text>
                     <text
                       x={nucleus.x}
-                      y={bubbleY + 14}
+                      y={nucleus.y + 38}
                       textAnchor="middle"
-                      className="text-[10px] font-bold fill-green-700 pointer-events-none select-none"
+                      fontSize="9"
+                      fill="#16a34a"
+                      className="pointer-events-none select-none"
                     >
-                      {nucleus.count} hijos agrupados • tocar para expandir
+                      hijos
                     </text>
-                  </g>
+                  </>
+                ) : (
+                  <>
+                    <circle cx={nucleus.x} cy={nucleus.y + 28} r="14" fill="#ffffff" stroke="#111827" strokeWidth="1.5" />
+                    <text
+                      x={nucleus.x}
+                      y={nucleus.y + 33}
+                      textAnchor="middle"
+                      className="text-[14px] font-bold fill-gray-800 pointer-events-none select-none"
+                    >
+                      -
+                    </text>
+                  </>
                 )}
               </g>
             );
@@ -2602,24 +2597,24 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                     const branchMode = option.gender === 'female'
                       ? 'maternal'
                       : (option.gender === 'male' ? 'paternal' : 'ancestors');
+                    const handleBranchSelect = (e) => {
+                      e.stopPropagation();
+                      if (e.type === 'mousedown' && Date.now() - stateRef.current.lastTouchEndTime < 500) return;
+                      setSelectedNodeId(controlsNode.id);
+                      setFocusNodeId(controlsNode.id);
+                      setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
+                      setRelativesBranchMode(branchMode);
+                      if (lineageViewMode === 'all') {
+                        setLineageViewMode('relatives');
+                        pendingViewCenterRef.current = true;
+                      }
+                    };
                     return (
                       <button
                         key={option.id}
                         type="button"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          setSelectedNodeId(controlsNode.id);
-                          setFocusNodeId(controlsNode.id);
-                          setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
-                          setRelativesBranchMode(branchMode);
-                        }}
-                        onTouchStart={(e) => {
-                          e.stopPropagation();
-                          setSelectedNodeId(controlsNode.id);
-                          setFocusNodeId(controlsNode.id);
-                          setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
-                          setRelativesBranchMode(branchMode);
-                        }}
+                        onMouseDown={handleBranchSelect}
+                        onTouchStart={handleBranchSelect}
                         className={`w-5 h-5 rounded-full text-white flex items-center justify-center ${
                           isActive ? 'bg-orange-500' : 'bg-slate-400'
                         }`}
@@ -2635,6 +2630,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                       type="button"
                       onMouseDown={(e) => {
                         e.stopPropagation();
+                        if (Date.now() - stateRef.current.lastTouchEndTime < 500) return;
                         setSelectedNodeId(controlsNode.id);
                         setFocusNodeId(controlsNode.id);
                         setRelativesBranchMode(null);
@@ -2656,6 +2652,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                     type="button"
                     onMouseDown={(e) => {
                       e.stopPropagation();
+                      if (Date.now() - stateRef.current.lastTouchEndTime < 500) return;
                       openActionsModal(controlsNode.id);
                     }}
                     onTouchStart={(e) => {
@@ -2684,6 +2681,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                     type="button"
                     onMouseDown={(e) => {
                       e.stopPropagation();
+                      if (Date.now() - stateRef.current.lastTouchEndTime < 500) return;
                       openActionsModal(controlsNode.id);
                     }}
                     onTouchStart={(e) => {
@@ -2750,7 +2748,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                         <g
                           key={`fan-${slot.gen}-${slot.slotIndex}`}
                           className="pointer-events-auto cursor-pointer"
-                          onMouseDown={(e) => { e.stopPropagation(); openActionsModal(slot.nodeId); }}
+                          onMouseDown={(e) => { e.stopPropagation(); if (Date.now() - stateRef.current.lastTouchEndTime < 500) return; openActionsModal(slot.nodeId); }}
                           onTouchStart={(e) => { e.stopPropagation(); openActionsModal(slot.nodeId); }}
                         >
                           <path
@@ -2803,7 +2801,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                   stroke="#cbd5e1"
                   strokeWidth={1.5}
                   className="pointer-events-auto cursor-pointer"
-                  onMouseDown={(e) => { e.stopPropagation(); openActionsModal(fanFocusId); }}
+                  onMouseDown={(e) => { e.stopPropagation(); if (Date.now() - stateRef.current.lastTouchEndTime < 500) return; openActionsModal(fanFocusId); }}
                   onTouchStart={(e) => { e.stopPropagation(); openActionsModal(fanFocusId); }}
                 />
                 {(() => {
