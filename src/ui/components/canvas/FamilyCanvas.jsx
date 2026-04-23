@@ -899,10 +899,19 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
           const [left, right] = [...uniqueParents].sort((a, b) => a.fromNode.x - b.fromNode.x);
           const relationLabel = resolveEdgeLabel(partnerEdge);
           const isBroken = partnerEdge.type === 'ex_spouse' || isBrokenLabel(relationLabel);
+          // In atomic (curved) mode the partner line is a quadratic Bézier with its control
+          // point arched 28px above the higher parent.  The true midpoint (t=0.5) of that
+          // curve is: 0.25*P0 + 0.5*P_ctrl + 0.25*P2, which differs from the straight-line
+          // midpoint only in Y.  We use that formula so the child branch visually originates
+          // from the centre of the curve rather than from the air next to a parent node.
+          const midX = (left.fromNode.x + right.fromNode.x) / 2;
+          const straightMidY = (left.fromNode.y + right.fromNode.y) / 2;
+          const curveControlY = Math.min(left.fromNode.y, right.fromNode.y) - 28;
+          const curveMidY = 0.25 * left.fromNode.y + 0.5 * curveControlY + 0.25 * right.fromNode.y;
           const junctionNode = {
             id: left.edge.from,
-            x: (left.fromNode.x + right.fromNode.x) / 2,
-            y: (left.fromNode.y + right.fromNode.y) / 2,
+            x: midX,
+            y: organizationMode === 'atomic' ? curveMidY : straightMidY,
           };
           const connectorEdge = {
             id: `parent-bundle-${childId}-${pairKey}`,
@@ -928,7 +937,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     });
 
     return output;
-  }, [renderedNodeById, edges, effectiveHiddenNodeIds, collapsedGroupByNodeId, collapsedGroupBubbleMap]);
+  }, [renderedNodeById, edges, effectiveHiddenNodeIds, collapsedGroupByNodeId, collapsedGroupBubbleMap, organizationMode]);
 
   const nodeGroupColorById = useMemo(() => {
     const map = new Map();

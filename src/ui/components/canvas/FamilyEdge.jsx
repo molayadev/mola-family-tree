@@ -98,15 +98,17 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick, curveM
           strokeLinejoin="round"
         />
       ) : null}
-      {/* Midpoint dot on partner edges */}
-      {isPartner && (
-        <circle
-          cx={(fromNode.x + toNode.x) / 2}
-          cy={(fromNode.y + toNode.y) / 2}
-          r="3"
-          fill={strokeColor}
-        />
-      )}
+      {/* Midpoint dot on partner edges – placed on the true curve centre in curved mode */}
+      {isPartner && (() => {
+        let dotCx = (fromNode.x + toNode.x) / 2;
+        let dotCy = (fromNode.y + toNode.y) / 2;
+        if (isCurved) {
+          // Quadratic Bézier midpoint (t=0.5): 0.25*P0 + 0.5*P_ctrl + 0.25*P2
+          const curveControlY = Math.min(fromNode.y, toNode.y) - 28;
+          dotCy = 0.25 * fromNode.y + 0.5 * curveControlY + 0.25 * toNode.y;
+        }
+        return <circle cx={dotCx} cy={dotCy} r="3" fill={strokeColor} />;
+      })()}
       {edge.type === EDGE_TYPES.CUSTOM && edge.styleMode === 'badge' && (
         <g>
           <rect
