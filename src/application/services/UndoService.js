@@ -17,14 +17,16 @@ export class UndoService {
    * @param {Array} edges - Current edges array
    * @param {Array} customLinkTypes - Current custom link types array
    * @param {Array} familyGroups - Current family groups array
+   * @param {Object|null} uiState - Optional UI state to restore (e.g. organization mode)
    */
-  saveState(nodes, edges, customLinkTypes = [], familyGroups = []) {
+  saveState(nodes, edges, customLinkTypes = [], familyGroups = [], uiState = null) {
     // Create deep copies to avoid reference issues
     const state = {
       nodes: JSON.parse(JSON.stringify(nodes)),
       edges: JSON.parse(JSON.stringify(edges)),
       customLinkTypes: JSON.parse(JSON.stringify(customLinkTypes)),
       familyGroups: JSON.parse(JSON.stringify(familyGroups)),
+      uiState: uiState ? JSON.parse(JSON.stringify(uiState)) : null,
     };
 
     this.history.push(state);

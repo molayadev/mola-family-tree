@@ -1,12 +1,13 @@
 import { useState } from 'react';
 
-import { Target, Download, LogOut, Menu, X, Camera, Undo, Link as LinkIcon, Users } from 'lucide-react';
+import { Target, Download, LogOut, Menu, X, Camera, Undo, Link as LinkIcon, Users, Sparkles } from 'lucide-react';
 
 export default function CanvasHUD({
   username,
   nodeCount,
   zoom,
   onFitToScreen,
+  onOpenOrganize,
   onManageLinkTypes,
   onOpenFamilyGroups,
   hasFamilyGroups,
@@ -19,6 +20,7 @@ export default function CanvasHUD({
   onChangeViewMode,
   viewModeOptions = [],
   focusedNodeName = '',
+  canOrganize = false,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -80,7 +82,15 @@ export default function CanvasHUD({
           <button onClick={onFitToScreen} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Centrar Vista">
             <Target size={20} className="text-gray-600" />
           </button>
-          {/* Organizar oculto temporalmente */}
+          {canOrganize && (
+            <button
+              onClick={onOpenOrganize}
+              className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors"
+              title="Organizar árbol"
+            >
+              <Sparkles size={20} className="text-orange-500" />
+            </button>
+          )}
           <button onClick={onOpenFamilyGroups} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Grupos familiares">
             <Users size={20} className={`${hasFamilyGroups ? 'text-orange-600' : 'text-gray-600'}`} />
           </button>
@@ -178,7 +188,15 @@ export default function CanvasHUD({
                 <span className="text-sm text-gray-700">Centrar vista</span>
               </button>
 
-              {/* Organizar oculto temporalmente */}
+              {canOrganize && (
+                <button
+                  onClick={() => handleAction(onOpenOrganize)}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left"
+                >
+                  <Sparkles size={18} className="text-orange-500" />
+                  <span className="text-sm text-gray-700">Organizar árbol</span>
+                </button>
+              )}
 
               <button
                 onClick={() => handleAction(onOpenFamilyGroups)}

@@ -9,7 +9,7 @@ const truncateBadgeLabel = (label = '') => (
     : label
 );
 
-export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
+export default function FamilyEdge({ edge, fromNode, toNode, onLineClick, curveMode = 'geometric' }) {
   if (!fromNode || !toNode) return null;
   if (edge.type === EDGE_TYPES.SIBLING) return null;
 
@@ -23,28 +23,53 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick }) {
   let strokeWidth;
   let strokeDash;
 
+  const isCurved = curveMode === 'curved';
+
   if (isPartner) {
     // Partner lines: straight horizontal-ish, always pink; broken relations are dashed.
-    d = `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
+    if (isCurved) {
+      const cx = (fromNode.x + toNode.x) / 2;
+      d = `M ${fromNode.x} ${fromNode.y} Q ${cx} ${Math.min(fromNode.y, toNode.y) - 28} ${toNode.x} ${toNode.y}`;
+    } else {
+      d = `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
+    }
     strokeColor = '#F9A8D4';
     strokeWidth = 1.5;
     strokeDash = isBroken ? '6,4' : '0';
   } else if (edge.type === EDGE_TYPES.CUSTOM) {
-    d = `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
+    if (isCurved) {
+      const controlY = (fromNode.y + toNode.y) / 2;
+      d = `M ${fromNode.x} ${fromNode.y} C ${fromNode.x} ${controlY}, ${toNode.x} ${controlY}, ${toNode.x} ${toNode.y}`;
+    } else {
+      d = `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`;
+    }
     strokeColor = edge.styleColor || '#8B5CF6';
     strokeWidth = 1.5;
     strokeDash = edge.styleMode === 'dashed' ? '6,4' : '0';
   } else if (isParentBundle) {
     // Couple-connector → child line (single branch)
-    const midY = (fromNode.y + toNode.y) / 2;
-    d = `M ${fromNode.x} ${fromNode.y} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - NODE_RADIUS}`;
+    if (isCurved) {
+      const childEntryY = toNode.y - (NODE_RADIUS * 0.45);
+      const controlY = fromNode.y + ((childEntryY - fromNode.y) * 0.45);
+      d = `M ${fromNode.x} ${fromNode.y} C ${fromNode.x} ${controlY}, ${toNode.x} ${controlY}, ${toNode.x} ${childEntryY}`;
+    } else {
+      const midY = (fromNode.y + toNode.y) / 2;
+      d = `M ${fromNode.x} ${fromNode.y} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - NODE_RADIUS}`;
+    }
     strokeColor = edge.styleColor || '#F9A8D4';
     strokeWidth = 1.2;
     strokeDash = edge.styleDash || '0';
   } else {
     // Single-parent → child line
-    const midY = (fromNode.y + toNode.y) / 2;
-    d = `M ${fromNode.x} ${fromNode.y + NODE_RADIUS} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - NODE_RADIUS}`;
+    if (isCurved) {
+      const startY = fromNode.y;
+      const childEntryY = toNode.y - (NODE_RADIUS * 0.45);
+      const controlY = startY + ((childEntryY - startY) * 0.5);
+      d = `M ${fromNode.x} ${startY} C ${fromNode.x} ${controlY}, ${toNode.x} ${controlY}, ${toNode.x} ${childEntryY}`;
+    } else {
+      const midY = (fromNode.y + toNode.y) / 2;
+      d = `M ${fromNode.x} ${fromNode.y + NODE_RADIUS} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - NODE_RADIUS}`;
+    }
     strokeColor = edge.styleColor || '#111827';
     strokeWidth = 1;
     strokeDash = edge.styleDash || '0';

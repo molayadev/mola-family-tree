@@ -13,6 +13,7 @@ import PartnerSelectionModal from '../modals/PartnerSelectionModal';
 import LinkTypeSelectionModal from '../modals/LinkTypeSelectionModal';
 import LinkTypesManagerModal from '../modals/LinkTypesManagerModal';
 import FamilyGroupsModal from '../modals/FamilyGroupsModal';
+import OrganizeTreeModal from '../modals/OrganizeTreeModal';
 import Input from '../common/Input';
 
 const GROUP_EMOJIS = ['👨‍👩‍👧', '👨‍👩‍👧‍👦', '👩‍👩‍👦', '👨‍👨‍👧', '🏡', '💞', '🌳', '💫', '🫶', '✨'];
@@ -641,6 +642,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [highlightedGroupId, setHighlightedGroupId] = useState(null);
   const [groupDraft, setGroupDraft] = useState(null);
   const [collapsedGroupMenu, setCollapsedGroupMenu] = useState(null); // { groupId, x, y }
+  const [organizeModalOpen, setOrganizeModalOpen] = useState(false);
+  const [organizationMode, setOrganizationMode] = useState('none');
 
   // Linking mode state
   const [linkingMode, setLinkingMode] = useState(null); // { sourceId } or null
@@ -680,6 +683,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     () => nodes.filter(n => !effectiveHiddenNodeIds.has(n.id)),
     [nodes, effectiveHiddenNodeIds],
   );
+
+  const canUseOrganize = lineageViewMode === 'relatives' || lineageViewMode === 'all';
 
   const lineageColumnPositions = useMemo(() => {
     const focusId = lineageVisibility.resolvedFocusNodeId;
@@ -1318,6 +1323,9 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
     setIsolatedGroupId(null);
     setHighlightedGroupId(null);
+    if (previousState.uiState && Object.prototype.hasOwnProperty.call(previousState.uiState, 'organizationMode')) {
+      setOrganizationMode(previousState.uiState.organizationMode || 'none');
+    }
     saveAndUpdate(
       previousState.nodes,
       previousState.edges,
@@ -1326,6 +1334,50 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     );
     setTimeout(() => fitToScreen(previousState.nodes), FIT_TO_SCREEN_DELAY);
   }, [undoService, saveAndUpdate, fitToScreen]);
+
+  useEffect(() => {
+    if (canUseOrganize) return;
+    setOrganizeModalOpen(false);
+  }, [canUseOrganize]);
+
+  const handleApplyOrganization = useCallback((mode) => {
+    if (!canUseOrganize) return;
+    if (!['levels', 'atomic', 'aizado'].includes(mode)) return;
+
+    undoService.saveState(
+      nodes,
+      edges,
+      customLinkTypes,
+      normalizedFamilyGroups,
+      { organizationMode },
+    );
+
+    if (mode === 'atomic') {
+      setOrganizationMode('atomic');
+      setOrganizeModalOpen(false);
+      return;
+    }
+
+    const organizedNodes = mode === 'levels'
+      ? treeService.organizeByBirthLevels(nodes, edges)
+      : treeService.organizeAizado(nodes, edges);
+
+    setOrganizationMode(mode);
+    saveAndUpdate(organizedNodes, edges, customLinkTypes, normalizedFamilyGroups);
+    setOrganizeModalOpen(false);
+    setTimeout(() => fitToScreen(organizedNodes), FIT_TO_SCREEN_DELAY);
+  }, [
+    canUseOrganize,
+    customLinkTypes,
+    edges,
+    fitToScreen,
+    nodes,
+    normalizedFamilyGroups,
+    organizationMode,
+    saveAndUpdate,
+    treeService,
+    undoService,
+  ]);
 
   // ---- Family groups actions ----
   const handleShowOnlyGroup = useCallback((groupId) => {
@@ -1691,6 +1743,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         nodeCount={nodes.length}
         zoom={transform.k}
         onFitToScreen={handleCenterCurrentView}
+        onOpenOrganize={() => setOrganizeModalOpen(true)}
         onManageLinkTypes={() => setLinkTypesModalOpen(true)}
         onOpenFamilyGroups={() => setFamilyGroupsModalOpen(true)}
         hasFamilyGroups={normalizedFamilyGroups.length > 0}
@@ -1703,6 +1756,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         onChangeViewMode={handleViewModeChange}
         viewModeOptions={LINEAGE_VIEW_MODES}
         focusedNodeName={focusedNode ? `${focusedNode.data.firstName} ${focusedNode.data.lastName}`.trim() : ''}
+        canOrganize={canUseOrganize}
       />
 
       <ZoomControls onZoomIn={zoomIn} onZoomOut={zoomOut} />
@@ -1768,6 +1822,14 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         onStartEditMembers={handleStartEditMembers}
         onDelete={handleDeleteGroup}
         onIdentifyMembers={handleIdentifyGroupMembers}
+      />
+
+      <OrganizeTreeModal
+        isOpen={organizeModalOpen}
+        onClose={() => setOrganizeModalOpen(false)}
+        onSelectMode={handleApplyOrganization}
+        onUndo={handleUndo}
+        canUndo={canUndo}
       />
 
       {/* Linking mode banner */}
@@ -1903,6 +1965,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                 fromNode={fromNode}
                 toNode={toNode}
                 onLineClick={handleLineClick}
+                curveMode={organizationMode === 'atomic' ? 'curved' : 'geometric'}
               />
             );
           })}
