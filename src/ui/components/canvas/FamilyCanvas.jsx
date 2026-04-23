@@ -2082,7 +2082,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   }, [selectedNodeId, focusNodeId, nodes, edges, parentChoiceByChildId]);
 
   const handleSelectNode = useCallback((nodeId) => {
-    if (lineageViewMode !== 'relatives') return;
+    if (lineageViewMode !== 'relatives' && lineageViewMode !== 'all') return;
     setSelectedNodeId(nodeId);
     selectGroupFromNode(nodeId);
   }, [lineageViewMode, selectGroupFromNode]);
@@ -2122,10 +2122,13 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     () => buildNodeParentControls(nodes, edges, controlsNode?.id || null, parentChoiceByChildId),
     [nodes, edges, controlsNode?.id, parentChoiceByChildId],
   );
-  const showTreeControls = Boolean(lineageViewMode === 'relatives' && controlsNode);
+  const showTreeControls = Boolean((lineageViewMode === 'relatives' || lineageViewMode === 'all') && controlsNode);
   const isControlsNodeActive = Boolean(
     controlsNode
-    && controlsNode.id === lineageVisibility.resolvedFocusNodeId,
+    && (
+      lineageViewMode === 'all'
+      || controlsNode.id === lineageVisibility.resolvedFocusNodeId
+    ),
   );
   const showTreeParentFilters = Boolean(isControlsNodeActive && nodeParentControls.options.length > 0);
   const showTreeEyeButton = Boolean(showTreeControls && !isControlsNodeActive);
@@ -2602,24 +2605,23 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                     const branchMode = option.gender === 'female'
                       ? 'maternal'
                       : (option.gender === 'male' ? 'paternal' : 'ancestors');
+                    const handleBranchSelect = (e) => {
+                      e.stopPropagation();
+                      setSelectedNodeId(controlsNode.id);
+                      setFocusNodeId(controlsNode.id);
+                      setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
+                      setRelativesBranchMode(branchMode);
+                      if (lineageViewMode === 'all') {
+                        setLineageViewMode('relatives');
+                        pendingViewCenterRef.current = true;
+                      }
+                    };
                     return (
                       <button
                         key={option.id}
                         type="button"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          setSelectedNodeId(controlsNode.id);
-                          setFocusNodeId(controlsNode.id);
-                          setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
-                          setRelativesBranchMode(branchMode);
-                        }}
-                        onTouchStart={(e) => {
-                          e.stopPropagation();
-                          setSelectedNodeId(controlsNode.id);
-                          setFocusNodeId(controlsNode.id);
-                          setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
-                          setRelativesBranchMode(branchMode);
-                        }}
+                        onMouseDown={handleBranchSelect}
+                        onTouchStart={handleBranchSelect}
                         className={`w-5 h-5 rounded-full text-white flex items-center justify-center ${
                           isActive ? 'bg-orange-500' : 'bg-slate-400'
                         }`}
