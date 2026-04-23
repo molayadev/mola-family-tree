@@ -2607,6 +2607,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                       : (option.gender === 'male' ? 'paternal' : 'ancestors');
                     const handleBranchSelect = (e) => {
                       e.stopPropagation();
+                      if (e.type === 'mousedown' && Date.now() - stateRef.current.lastTouchEndTime < 500) return;
                       setSelectedNodeId(controlsNode.id);
                       setFocusNodeId(controlsNode.id);
                       setParentChoiceByChildId(prev => ({ ...prev, [controlsNode.id]: option.id }));
@@ -2637,6 +2638,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                       type="button"
                       onMouseDown={(e) => {
                         e.stopPropagation();
+                        if (Date.now() - stateRef.current.lastTouchEndTime < 500) return;
                         setSelectedNodeId(controlsNode.id);
                         setFocusNodeId(controlsNode.id);
                         setRelativesBranchMode(null);
@@ -2658,6 +2660,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                     type="button"
                     onMouseDown={(e) => {
                       e.stopPropagation();
+                      if (Date.now() - stateRef.current.lastTouchEndTime < 500) return;
                       openActionsModal(controlsNode.id);
                     }}
                     onTouchStart={(e) => {
@@ -2686,6 +2689,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                     type="button"
                     onMouseDown={(e) => {
                       e.stopPropagation();
+                      if (Date.now() - stateRef.current.lastTouchEndTime < 500) return;
                       openActionsModal(controlsNode.id);
                     }}
                     onTouchStart={(e) => {
@@ -2752,7 +2756,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                         <g
                           key={`fan-${slot.gen}-${slot.slotIndex}`}
                           className="pointer-events-auto cursor-pointer"
-                          onMouseDown={(e) => { e.stopPropagation(); openActionsModal(slot.nodeId); }}
+                          onMouseDown={(e) => { e.stopPropagation(); if (Date.now() - stateRef.current.lastTouchEndTime < 500) return; openActionsModal(slot.nodeId); }}
                           onTouchStart={(e) => { e.stopPropagation(); openActionsModal(slot.nodeId); }}
                         >
                           <path
@@ -2805,7 +2809,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                   stroke="#cbd5e1"
                   strokeWidth={1.5}
                   className="pointer-events-auto cursor-pointer"
-                  onMouseDown={(e) => { e.stopPropagation(); openActionsModal(fanFocusId); }}
+                  onMouseDown={(e) => { e.stopPropagation(); if (Date.now() - stateRef.current.lastTouchEndTime < 500) return; openActionsModal(fanFocusId); }}
                   onTouchStart={(e) => { e.stopPropagation(); openActionsModal(fanFocusId); }}
                 />
                 {(() => {
