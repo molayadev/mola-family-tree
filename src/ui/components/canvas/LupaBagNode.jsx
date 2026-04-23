@@ -7,7 +7,7 @@
 export default function LupaBagNode({ bag, onClick }) {
   if (!bag) return null;
 
-  const { x, y, label, childrenCount, memberNodeIds } = bag;
+  const { x, y, label, childrenCount, memberNodeIds, isExpanded } = bag;
   const memberCount = memberNodeIds?.length ?? 0;
   const hasChildren = childrenCount > 0;
 
@@ -29,7 +29,7 @@ export default function LupaBagNode({ bag, onClick }) {
         rx="54"
         ry="32"
         fill="#f0fdf4"
-        stroke="#16a34a"
+        stroke={isExpanded ? '#15803d' : '#16a34a'}
         strokeWidth="2"
       />
 
@@ -93,7 +93,7 @@ export default function LupaBagNode({ bag, onClick }) {
           dominantBaseline="middle"
           style={{ fontSize: '9px', fill: '#16a34a' }}
         >
-          🔍
+          {isExpanded ? '-' : '+'}
         </text>
       </g>
     </g>

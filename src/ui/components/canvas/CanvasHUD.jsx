@@ -21,6 +21,8 @@ export default function CanvasHUD({
   viewModeOptions = [],
   focusedNodeName = '',
   canOrganize = false,
+  edgeCurveMode = 'curved',
+  onToggleEdgeCurveMode = () => {},
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -91,6 +93,13 @@ export default function CanvasHUD({
               <Sparkles size={20} className="text-orange-500" />
             </button>
           )}
+          <button
+            onClick={onToggleEdgeCurveMode}
+            className="px-3 py-2 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors text-xs font-semibold text-gray-700"
+            title={edgeCurveMode === 'curved' ? 'Cambiar a líneas geométricas' : 'Cambiar a líneas curvas'}
+          >
+            {edgeCurveMode === 'curved' ? 'Curvas' : 'Geométricas'}
+          </button>
           <button onClick={onOpenFamilyGroups} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Grupos familiares">
             <Users size={20} className={`${hasFamilyGroups ? 'text-orange-600' : 'text-gray-600'}`} />
           </button>
@@ -197,6 +206,18 @@ export default function CanvasHUD({
                   <span className="text-sm text-gray-700">Organizar árbol</span>
                 </button>
               )}
+
+              <button
+                onClick={() => handleAction(onToggleEdgeCurveMode)}
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors text-left"
+              >
+                <span className="w-[18px] h-[18px] rounded-full border border-gray-300 flex items-center justify-center text-[10px] font-bold text-gray-600">
+                  ~
+                </span>
+                <span className="text-sm text-gray-700">
+                  Líneas: {edgeCurveMode === 'curved' ? 'Curvas' : 'Geométricas'}
+                </span>
+              </button>
 
               <button
                 onClick={() => handleAction(onOpenFamilyGroups)}

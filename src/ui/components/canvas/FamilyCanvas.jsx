@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Move, Link as LinkIcon, X, Eye, Pencil, GitBranch, ArrowUp, ArrowDown, Users, Venus, Mars, CircleDot, ArrowLeft, Search } from 'lucide-react';
+import { Move, Link as LinkIcon, X, Eye, Pencil, GitBranch, ArrowUp, ArrowDown, Users, Venus, Mars, CircleDot, Search } from 'lucide-react';
 import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../../domain/config/constants';
 import { generateId } from '../../../domain/entities/Node';
 import { useCanvas } from '../../../application/hooks/useCanvas';
 import { downloadTreeSnapshot } from '../../../application/services/SnapshotService';
-import { computeLupaLevel, getLupaInitialAnchor, buildLupaStackLabel } from '../../../application/utils/lupaLayout';
+import { computeLupaLevel, getLupaInitialAnchor } from '../../../application/utils/lupaLayout';
 import CanvasHUD from './CanvasHUD';
 import ZoomControls from './ZoomControls';
 import FamilyNode from './FamilyNode';
@@ -647,6 +647,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [organizeModalOpen, setOrganizeModalOpen] = useState(false);
   const [organizationMode, setOrganizationMode] = useState('none');
   const [lupaStack, setLupaStack] = useState([]);
+  const [expandedLupaBagIds, setExpandedLupaBagIds] = useState(() => new Set());
+  const [edgeCurveMode, setEdgeCurveMode] = useState('curved');
 
   // Linking mode state
   const [linkingMode, setLinkingMode] = useState(null); // { sourceId } or null
@@ -767,8 +769,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
       ? lupaStack[lupaStack.length - 1].anchorNodeIds
       : getLupaInitialAnchor(nodes, edges, focusNodeId);
 
-    return computeLupaLevel(nodes, edges, currentAnchorIds);
-  }, [organizationMode, lupaStack, nodes, edges, focusNodeId]);
+    return computeLupaLevel(nodes, edges, currentAnchorIds, expandedLupaBagIds);
+  }, [organizationMode, lupaStack, nodes, edges, focusNodeId, expandedLupaBagIds]);
 
   // Nodes to display in the lupa view (with overridden positions)
   const lupaVisibleNodes = useMemo(() => {
@@ -841,12 +843,6 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     const bagVirtual = lupaBagNodes.map((b) => ({ id: b.id, x: b.x, y: b.y }));
     return [...lupaVisibleNodes, ...bagVirtual];
   }, [lupaData, lupaVisibleNodes, lupaBagNodes]);
-
-  // Previous lupa level label (for "Volver" button)
-  const lupaPrevLabel = useMemo(() => {
-    if (lupaStack.length === 0) return null;
-    return lupaStack[lupaStack.length - 1].label || 'Atrás';
-  }, [lupaStack]);
 
   const collapsedGroupByNodeId = useMemo(() => {
     if (groupDraft) return new Map();
@@ -1192,17 +1188,23 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
   // ── Lupa navigation ────────────────────────────────────────────────────────
   const handleLupaBagClick = useCallback((bag) => {
-    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-    const label = buildLupaStackLabel(bag.memberNodeIds, nodeMap);
-    setLupaStack((prev) => [...prev, { anchorNodeIds: bag.memberNodeIds, label }]);
-  }, [nodes]);
-
-  const handleLupaBack = useCallback(() => {
-    setLupaStack((prev) => prev.slice(0, -1));
+    setExpandedLupaBagIds((prev) => {
+      // Accordion mode: only one bag expanded at a time
+      if (prev.has(bag.id)) {
+        // Closing this bag
+        const next = new Set(prev);
+        next.delete(bag.id);
+        return next;
+      } else {
+        // Expanding this bag, closing all others
+        return new Set([bag.id]);
+      }
+    });
   }, []);
 
   const handleLupaExit = useCallback(() => {
     setLupaStack([]);
+    setExpandedLupaBagIds(new Set());
     setOrganizationMode('none');
   }, []);
 
@@ -1484,6 +1486,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
     if (mode === 'lupa') {
       setLupaStack([]);
+      setExpandedLupaBagIds(new Set());
       setOrganizationMode('lupa');
       setOrganizeModalOpen(false);
       return;
@@ -1892,6 +1895,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         viewModeOptions={LINEAGE_VIEW_MODES}
         focusedNodeName={focusedNode ? `${focusedNode.data.firstName} ${focusedNode.data.lastName}`.trim() : ''}
         canOrganize={canUseOrganize}
+        edgeCurveMode={edgeCurveMode}
+        onToggleEdgeCurveMode={() => setEdgeCurveMode(prev => (prev === 'curved' ? 'geometric' : 'curved'))}
       />
 
       <ZoomControls onZoomIn={zoomIn} onZoomOut={zoomOut} />
@@ -2103,14 +2108,23 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                   fromNode={fromNode}
                   toNode={toNode}
                   onLineClick={() => {}}
-                  curveMode="geometric"
+                  curveMode={edgeCurveMode}
                 />
               ))}
 
               {/* Synthetic lines from anchor midpoint to each bag */}
               {lupaBagEdges.map(({ fromNode, toNode, renderKey }) => {
-                const midY = (fromNode.y + toNode.y) / 2;
-                const d = `M ${fromNode.x} ${fromNode.y} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - 34}`;
+                const d = edgeCurveMode === 'curved'
+                  ? (() => {
+                      const startY = fromNode.y;
+                      const endY = toNode.y - 34;
+                      const controlY = startY + ((endY - startY) * 0.5);
+                      return `M ${fromNode.x} ${startY} C ${fromNode.x} ${controlY}, ${toNode.x} ${controlY}, ${toNode.x} ${endY}`;
+                    })()
+                  : (() => {
+                      const midY = (fromNode.y + toNode.y) / 2;
+                      return `M ${fromNode.x} ${fromNode.y} L ${fromNode.x} ${midY} L ${toNode.x} ${midY} L ${toNode.x} ${toNode.y - 34}`;
+                    })();
                 return (
                   <path
                     key={renderKey}
@@ -2158,7 +2172,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
                 fromNode={fromNode}
                 toNode={toNode}
                 onLineClick={handleLineClick}
-                curveMode={organizationMode === 'atomic' ? 'curved' : 'geometric'}
+                curveMode={edgeCurveMode}
               />
             );
           })}
@@ -2468,23 +2482,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             <Search size={14} className="text-green-600 shrink-0" />
             <span className="text-xs font-bold text-green-800 whitespace-nowrap">
               Orden Lupa
-              {lupaStack.length > 0 && (
-                <span className="ml-1 text-green-600">
-                  {' › '}{lupaStack[lupaStack.length - 1].label}
-                </span>
-              )}
+              <span className="ml-1 text-green-600">• toca una bolsa para expandir/colapsar</span>
             </span>
-
-            {lupaStack.length > 0 && (
-              <button
-                onClick={handleLupaBack}
-                className="min-h-[36px] min-w-[36px] flex items-center gap-1.5 px-2 py-1 rounded-xl bg-green-50 hover:bg-green-100 active:scale-95 transition-all text-green-800 text-xs font-semibold"
-                title={`Volver a: ${lupaPrevLabel}`}
-              >
-                <ArrowLeft size={13} />
-                <span className="hidden sm:inline">Volver</span>
-              </button>
-            )}
 
             <button
               onClick={handleLupaExit}
