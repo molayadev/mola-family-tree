@@ -649,6 +649,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const [lupaStack, setLupaStack] = useState([]);
   const [expandedLupaBagIds, setExpandedLupaBagIds] = useState(() => new Set());
   const [edgeCurveMode, setEdgeCurveMode] = useState('curved');
+  const [collapsedParentNucleusKeys, setCollapsedParentNucleusKeys] = useState(() => new Set());
 
   // Linking mode state
   const [linkingMode, setLinkingMode] = useState(null); // { sourceId } or null
@@ -677,19 +678,264 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     return hidden;
   }, [nodes, lineageVisibility.visibleNodeIds, groupDraft]);
 
+  const canUseOrganize = lineageViewMode === 'relatives' || lineageViewMode === 'all';
+  const canUseParentNucleusGrouping = organizationMode !== 'lupa' && (lineageViewMode === 'relatives' || lineageViewMode === 'all');
+
+  const parentNucleusMap = useMemo(() => {
+    if (!canUseParentNucleusGrouping) return new Map();
+
+    const nodeMap = new Map(nodes.map(node => [node.id, node]));
+    const childrenByParentKey = new Map();
+    const childrenByParentId = new Map();
+    const partnersByNodeId = new Map();
+    const allPartnersByNodeId = new Map(); // includes broken relationships
+
+    edges.forEach((edge) => {
+      if (edge.type === 'parent') {
+        const childId = edge.to;
+        const parentIds = [...new Set(
+          edges
+            .filter(item => item.type === 'parent' && item.to === childId)
+            .map(item => item.from)
+        )].filter(id => nodeMap.has(id));
+
+        if (!childrenByParentId.has(edge.from)) childrenByParentId.set(edge.from, new Set());
+        childrenByParentId.get(edge.from).add(childId);
+
+        if (parentIds.length !== 2) return;
+
+        const sortedParents = [...parentIds].sort();
+        const pairKey = sortedParents.join('|');
+        if (!childrenByParentKey.has(pairKey)) childrenByParentKey.set(pairKey, new Set());
+        childrenByParentKey.get(pairKey).add(childId);
+        return;
+      }
+
+      if (isPartnerEdgeType(edge.type) && !isBrokenLabel(resolveEdgeLabel(edge))) {
+        if (!partnersByNodeId.has(edge.from)) partnersByNodeId.set(edge.from, new Set());
+        if (!partnersByNodeId.has(edge.to)) partnersByNodeId.set(edge.to, new Set());
+        partnersByNodeId.get(edge.from).add(edge.to);
+        partnersByNodeId.get(edge.to).add(edge.from);
+      }
+
+      // All partner-type edges (including broken) are tracked for cluster membership
+      if (isPartnerEdgeType(edge.type)) {
+        if (!allPartnersByNodeId.has(edge.from)) allPartnersByNodeId.set(edge.from, new Set());
+        if (!allPartnersByNodeId.has(edge.to)) allPartnersByNodeId.set(edge.to, new Set());
+        allPartnersByNodeId.get(edge.from).add(edge.to);
+        allPartnersByNodeId.get(edge.to).add(edge.from);
+      }
+    });
+
+    const getFamilyName = (node) => {
+      const lastName = (node?.data?.lastName || '').trim();
+      if (lastName) return lastName;
+      return (node?.data?.firstName || '').trim() || '?';
+    };
+
+    const result = new Map();
+    childrenByParentKey.forEach((childSet, pairKey) => {
+      const parentIds = pairKey.split('|');
+      const parentNodes = parentIds.map(id => nodeMap.get(id)).filter(Boolean);
+      if (parentNodes.length !== 2) return;
+
+      const parentA = parentNodes.find(n => n.data?.gender === 'male') || parentNodes[0];
+      const parentB = parentNodes.find(n => n.id !== parentA.id) || parentNodes[1];
+
+      const collapsedNodeIds = new Set();
+      const queue = [...childSet];
+      const visited = new Set();
+
+      while (queue.length > 0) {
+        const currentId = queue.shift();
+        if (!currentId || visited.has(currentId)) continue;
+        visited.add(currentId);
+        collapsedNodeIds.add(currentId);
+
+        // Use allPartnersByNodeId (includes broken/ex relationships) so they're also hidden
+        const partners = [...(allPartnersByNodeId.get(currentId) || new Set())];
+        partners.forEach((partnerId) => {
+          if (nodeMap.has(partnerId)) {
+            collapsedNodeIds.add(partnerId);
+            // Queue partner's children too (their family stays in the cluster)
+            if (!visited.has(partnerId)) queue.push(partnerId);
+          }
+        });
+
+        const children = [...(childrenByParentId.get(currentId) || new Set())];
+        children.forEach((descId) => {
+          if (!visited.has(descId)) queue.push(descId);
+        });
+      }
+
+      result.set(pairKey, {
+        key: pairKey,
+        parentIds,
+        childIds: [...childSet],
+        collapsedNodeIds: [...collapsedNodeIds],
+        x: (parentNodes[0].x + parentNodes[1].x) / 2,
+        y: (parentNodes[0].y + parentNodes[1].y) / 2,
+        label: `Hijos ${getFamilyName(parentA)} ${getFamilyName(parentB)}`,
+        count: childSet.size,
+      });
+    });
+
+    return result;
+  }, [canUseParentNucleusGrouping, nodes, edges]);
+
+  const collapsedParentNucleusHiddenNodeIds = useMemo(() => {
+    const hidden = new Set();
+    if (!canUseParentNucleusGrouping || groupDraft || collapsedParentNucleusKeys.size === 0) return hidden;
+
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+    // Nodos ocultos por otras razones (no por nucleus collapse)
+    const otherHiddenIds = new Set([...hiddenNodeIds, ...lineageHiddenNodeIds]);
+
+    // Build edge map and relationship maps
+    const edgesByNode = new Map();
+    const allPartnersByNodeId = new Map(); // includes broken/ex relationships
+    const childrenByParentId = new Map();
+
+    edges.forEach(edge => {
+      if (!edgesByNode.has(edge.from)) edgesByNode.set(edge.from, []);
+      if (!edgesByNode.has(edge.to)) edgesByNode.set(edge.to, []);
+      edgesByNode.get(edge.from).push(edge);
+      edgesByNode.get(edge.to).push(edge);
+
+      if (isPartnerEdgeType(edge.type)) {
+        if (!allPartnersByNodeId.has(edge.from)) allPartnersByNodeId.set(edge.from, new Set());
+        if (!allPartnersByNodeId.has(edge.to)) allPartnersByNodeId.set(edge.to, new Set());
+        allPartnersByNodeId.get(edge.from).add(edge.to);
+        allPartnersByNodeId.get(edge.to).add(edge.from);
+      }
+      if (edge.type === 'parent') {
+        if (!childrenByParentId.has(edge.from)) childrenByParentId.set(edge.from, new Set());
+        childrenByParentId.get(edge.from).add(edge.to);
+      }
+    });
+
+    collapsedParentNucleusKeys.forEach((nucleusKey) => {
+      const nucleus = parentNucleusMap.get(nucleusKey);
+      if (!nucleus) return;
+
+      const nucleusParentIdSet = new Set(nucleus.parentIds);
+
+      // ── STEP 1: BFS initial candidates ───────────────────────────────────
+      // Start from nucleus children, expand to all partners (inc. ex) and descendants
+      const initialCandidates = new Set();
+      const bfsQueue = [...nucleus.childIds];
+      const bfsVisited = new Set();
+      while (bfsQueue.length > 0) {
+        const currentId = bfsQueue.shift();
+        if (!currentId || bfsVisited.has(currentId) || !nodeMap.has(currentId)) continue;
+        bfsVisited.add(currentId);
+        initialCandidates.add(currentId);
+        // All partners (including ex/broken)
+        (allPartnersByNodeId.get(currentId) || new Set()).forEach(partnerId => {
+          if (!bfsVisited.has(partnerId)) bfsQueue.push(partnerId);
+        });
+        // Children (descendants)
+        (childrenByParentId.get(currentId) || new Set()).forEach(childId => {
+          if (!bfsVisited.has(childId)) bfsQueue.push(childId);
+        });
+      }
+
+      // ── STEP 2: Rescue candidates that connect to the safe external tree ──
+      // BFS from nucleus parents NOT crossing initial candidates → "safe" nodes
+      const safeNodes = new Set(nucleus.parentIds);
+      const safeQueue = [...nucleus.parentIds];
+      while (safeQueue.length > 0) {
+        const id = safeQueue.shift();
+        (edgesByNode.get(id) || []).forEach(edge => {
+          const otherId = edge.from === id ? edge.to : edge.from;
+          if (!initialCandidates.has(otherId) && !safeNodes.has(otherId) &&
+              !otherHiddenIds.has(otherId) && nodeMap.has(otherId)) {
+            safeNodes.add(otherId);
+            safeQueue.push(otherId);
+          }
+        });
+      }
+
+      // Rescue: any initial candidate connected to a safe node gets freed
+      const candidates = new Set(initialCandidates);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        candidates.forEach(nodeId => {
+          const hasConnectionToSafe = (edgesByNode.get(nodeId) || []).some(edge => {
+            const otherId = edge.from === nodeId ? edge.to : edge.from;
+            if (nucleusParentIdSet.has(otherId)) return false; // parents don't rescue
+            return safeNodes.has(otherId);
+          });
+          if (hasConnectionToSafe) {
+            candidates.delete(nodeId);
+            // When a candidate is rescued, add it to safe nodes so it can rescue others
+            safeNodes.add(nodeId);
+            changed = true;
+          }
+        });
+      }
+
+      // ── STEP 3: Expand to orphaned relatives ─────────────────────────────
+      // Nodes reachable from candidates but NOT from safe nodes = orphaned → also hide
+      const reachableFromCandidates = new Set(candidates);
+      const expandQueue = [...candidates];
+      while (expandQueue.length > 0) {
+        const id = expandQueue.shift();
+        (edgesByNode.get(id) || []).forEach(edge => {
+          const otherId = edge.from === id ? edge.to : edge.from;
+          if (!reachableFromCandidates.has(otherId) && !otherHiddenIds.has(otherId) &&
+              !nucleusParentIdSet.has(otherId) && nodeMap.has(otherId)) {
+            reachableFromCandidates.add(otherId);
+            expandQueue.push(otherId);
+          }
+        });
+      }
+
+      // Orphans = reachable from candidates but not reachable from safe nodes
+      reachableFromCandidates.forEach(nodeId => {
+        if (!safeNodes.has(nodeId)) {
+          candidates.add(nodeId);
+        }
+      });
+
+      // Final rescue pass: orphans that turned out to connect to safe nodes
+      changed = true;
+      while (changed) {
+        changed = false;
+        candidates.forEach(nodeId => {
+          const hasConnectionToSafe = (edgesByNode.get(nodeId) || []).some(edge => {
+            const otherId = edge.from === nodeId ? edge.to : edge.from;
+            if (nucleusParentIdSet.has(otherId)) return false;
+            return safeNodes.has(otherId) && !candidates.has(otherId);
+          });
+          if (hasConnectionToSafe) {
+            candidates.delete(nodeId);
+            safeNodes.add(nodeId);
+            changed = true;
+          }
+        });
+      }
+
+      candidates.forEach(nodeId => hidden.add(nodeId));
+    });
+
+    return hidden;
+  }, [canUseParentNucleusGrouping, groupDraft, collapsedParentNucleusKeys, parentNucleusMap, nodes, edges, hiddenNodeIds, lineageHiddenNodeIds]);
+
   const effectiveHiddenNodeIds = useMemo(() => {
     if (groupDraft) return new Set();
     const merged = new Set(hiddenNodeIds);
     lineageHiddenNodeIds.forEach(nodeId => merged.add(nodeId));
+    collapsedParentNucleusHiddenNodeIds.forEach(nodeId => merged.add(nodeId));
     return merged;
-  }, [groupDraft, hiddenNodeIds, lineageHiddenNodeIds]);
+  }, [groupDraft, hiddenNodeIds, lineageHiddenNodeIds, collapsedParentNucleusHiddenNodeIds]);
 
   const visibleNodes = useMemo(
     () => nodes.filter(n => !effectiveHiddenNodeIds.has(n.id)),
     [nodes, effectiveHiddenNodeIds],
   );
-
-  const canUseOrganize = lineageViewMode === 'relatives' || lineageViewMode === 'all';
 
   const lineageColumnPositions = useMemo(() => {
     const focusId = lineageVisibility.resolvedFocusNodeId;
@@ -1120,8 +1366,10 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   useEffect(() => {
     if (nodes.length === 0) return;
     const hasNode = (nodeId) => Boolean(nodeId) && nodes.some(node => node.id === nodeId);
-    if (!hasNode(selectedNodeId)) setSelectedNodeId(nodes[0].id);
-    if (!hasNode(focusNodeId)) setFocusNodeId(nodes[0].id);
+    const needsSelectedUpdate = !hasNode(selectedNodeId);
+    const needsFocusUpdate = !hasNode(focusNodeId);
+    if (needsSelectedUpdate) setTimeout(() => setSelectedNodeId(nodes[0].id), 0);
+    if (needsFocusUpdate) setTimeout(() => setFocusNodeId(nodes[0].id), 0);
   }, [nodes, selectedNodeId, focusNodeId]);
 
   // Track if we need to save state before node movement
@@ -1206,6 +1454,15 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     setLupaStack([]);
     setExpandedLupaBagIds(new Set());
     setOrganizationMode('none');
+  }, []);
+
+  const toggleParentNucleusCollapse = useCallback((nucleusKey) => {
+    setCollapsedParentNucleusKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(nucleusKey)) next.delete(nucleusKey);
+      else next.add(nucleusKey);
+      return next;
+    });
   }, []);
 
   const focusVisibleNodes = useCallback((nextGroups, nextIsolatedGroupId = isolatedGroupId) => {
@@ -2203,7 +2460,68 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
             </g>
           ))}
 
-          {organizationMode !== 'lupa' && controlsRenderNode && showTreeControls && (
+          {canUseParentNucleusGrouping && [...parentNucleusMap.values()]
+            .filter((nucleus) => nucleus.parentIds.every(parentId => !effectiveHiddenNodeIds.has(parentId)))
+            .map((nucleus) => {
+            const isCollapsed = collapsedParentNucleusKeys.has(nucleus.key);
+            const bubbleY = nucleus.y + 74;
+            return (
+              <g key={`parent-nucleus-${nucleus.key}`} className="pointer-events-auto">
+                <g
+                  className="cursor-pointer"
+                  onMouseDown={(e) => { e.stopPropagation(); toggleParentNucleusCollapse(nucleus.key); }}
+                  onTouchStart={(e) => { e.stopPropagation(); toggleParentNucleusCollapse(nucleus.key); }}
+                >
+                  <circle cx={nucleus.x} cy={nucleus.y + 28} r="14" fill="#ffffff" stroke="#111827" strokeWidth="1.5" />
+                  <text
+                    x={nucleus.x}
+                    y={nucleus.y + 33}
+                    textAnchor="middle"
+                    className="text-[14px] font-bold fill-gray-800 pointer-events-none select-none"
+                  >
+                    {isCollapsed ? '+' : '-'}
+                  </text>
+                </g>
+
+                {isCollapsed && (
+                  <g
+                    className="cursor-pointer"
+                    onMouseDown={(e) => { e.stopPropagation(); toggleParentNucleusCollapse(nucleus.key); }}
+                    onTouchStart={(e) => { e.stopPropagation(); toggleParentNucleusCollapse(nucleus.key); }}
+                  >
+                    <rect
+                      x={nucleus.x - 100}
+                      y={bubbleY - 24}
+                      width="200"
+                      height="56"
+                      rx="14"
+                      fill="#ffffff"
+                      stroke="#16a34a"
+                      strokeWidth="1.8"
+                    />
+                    <text
+                      x={nucleus.x}
+                      y={bubbleY - 4}
+                      textAnchor="middle"
+                      className="text-[10px] font-semibold fill-green-800 pointer-events-none select-none"
+                    >
+                      {nucleus.label.length > 28 ? `${nucleus.label.slice(0, 27)}…` : nucleus.label}
+                    </text>
+                    <text
+                      x={nucleus.x}
+                      y={bubbleY + 14}
+                      textAnchor="middle"
+                      className="text-[10px] font-bold fill-green-700 pointer-events-none select-none"
+                    >
+                      {nucleus.count} hijos agrupados • tocar para expandir
+                    </text>
+                  </g>
+                )}
+              </g>
+            );
+          })}
+
+          {organizationMode !== 'lupa' && controlsRenderNode && showTreeControls && !effectiveHiddenNodeIds.has(controlsRenderNode.id) && (
             <g
               className="pointer-events-auto"
               transform={`translate(${controlsRenderNode.x}, ${controlsRenderNode.y - 56})`}
@@ -2294,7 +2612,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
           )}
 
           {/* Pencil button on selected/focused node in lineage mode (not radial — fan chart handles it) */}
-          {controlsRenderNode && lineageViewMode === 'lineage' && lineageAncestorNodeIds.has(controlsRenderNode.id) && (
+          {controlsRenderNode && lineageViewMode === 'lineage' && lineageAncestorNodeIds.has(controlsRenderNode.id) && !effectiveHiddenNodeIds.has(controlsRenderNode.id) && (
             <g
               className="pointer-events-auto"
               transform={`translate(${controlsRenderNode.x}, ${controlsRenderNode.y - 56})`}
