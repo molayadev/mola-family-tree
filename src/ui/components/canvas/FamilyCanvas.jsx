@@ -1335,11 +1335,6 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     setTimeout(() => fitToScreen(previousState.nodes), FIT_TO_SCREEN_DELAY);
   }, [undoService, saveAndUpdate, fitToScreen]);
 
-  useEffect(() => {
-    if (canUseOrganize) return;
-    setOrganizeModalOpen(false);
-  }, [canUseOrganize]);
-
   const handleApplyOrganization = useCallback((mode) => {
     if (!canUseOrganize) return;
     if (!['levels', 'atomic', 'aizado'].includes(mode)) return;
@@ -1588,6 +1583,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
     if (nextMode !== 'relatives') {
       setRelativesBranchMode(null);
+      setOrganizeModalOpen(false);
     }
 
     const hasNode = (nodeId) => Boolean(nodeId) && nodes.some(node => node.id === nodeId);
@@ -1743,7 +1739,10 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         nodeCount={nodes.length}
         zoom={transform.k}
         onFitToScreen={handleCenterCurrentView}
-        onOpenOrganize={() => setOrganizeModalOpen(true)}
+        onOpenOrganize={() => {
+          if (!canUseOrganize) return;
+          setOrganizeModalOpen(true);
+        }}
         onManageLinkTypes={() => setLinkTypesModalOpen(true)}
         onOpenFamilyGroups={() => setFamilyGroupsModalOpen(true)}
         hasFamilyGroups={normalizedFamilyGroups.length > 0}
