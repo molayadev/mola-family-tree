@@ -454,7 +454,8 @@ export class TreeService {
       return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
     };
 
-    const BIRTH_ORDER_VERTICAL_GAP = 86;
+    // 86px keeps sibling stacks compact while avoiding visual overlap with 64px node circles.
+    const SIBLING_VERTICAL_SPACING = 86;
     const nextPositions = new Map(baseNodes.map(node => [node.id, { x: node.x, y: node.y }]));
 
     groupedByParentKey.forEach((childIds) => {
@@ -471,12 +472,12 @@ export class TreeService {
 
       const centerX = children.reduce((sum, child) => sum + child.x, 0) / children.length;
       const centerY = children.reduce((sum, child) => sum + child.y, 0) / children.length;
-      const startY = centerY - ((children.length - 1) * BIRTH_ORDER_VERTICAL_GAP) / 2;
+      const startY = centerY - ((children.length - 1) * SIBLING_VERTICAL_SPACING) / 2;
 
       children.forEach((child, index) => {
         nextPositions.set(child.id, {
           x: centerX,
-          y: startY + (index * BIRTH_ORDER_VERTICAL_GAP),
+          y: startY + (index * SIBLING_VERTICAL_SPACING),
         });
       });
     });
@@ -540,8 +541,9 @@ export class TreeService {
       groupedByGeneration.get(generation).push(node.id);
     });
 
-    const AIZADO_HORIZONTAL_GAP = 180;
-    const AIZADO_VERTICAL_GAP = 200;
+    // 180x200 leaves generous room for labels/links and future expand interactions.
+    const AIZADO_NODE_HORIZONTAL_SPACING = 180;
+    const AIZADO_GENERATION_VERTICAL_SPACING = 200;
     const adjustedPositions = new Map();
     const orderedGenerations = [...groupedByGeneration.keys()].sort((a, b) => a - b);
 
@@ -552,12 +554,12 @@ export class TreeService {
         .filter(Boolean)
         .sort((a, b) => a.x - b.x);
 
-      const generationCenterY = generation * AIZADO_VERTICAL_GAP;
-      const startX = -((sortedByCurrentX.length - 1) * AIZADO_HORIZONTAL_GAP) / 2;
+      const generationCenterY = generation * AIZADO_GENERATION_VERTICAL_SPACING;
+      const startX = -((sortedByCurrentX.length - 1) * AIZADO_NODE_HORIZONTAL_SPACING) / 2;
 
       sortedByCurrentX.forEach((node, index) => {
         adjustedPositions.set(node.id, {
-          x: startX + (index * AIZADO_HORIZONTAL_GAP),
+          x: startX + (index * AIZADO_NODE_HORIZONTAL_SPACING),
           y: generationCenterY,
         });
       });

@@ -16,6 +16,7 @@ const OPTIONS = [
   {
     key: 'aizado',
     title: 'Orden Aizado',
+    // "Aizado" follows the exact product wording requested for this mode.
     description: 'Distribución despejada para facilitar foco y expansión.',
     icon: WandSparkles,
   },

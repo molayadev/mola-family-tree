@@ -2,6 +2,7 @@ import { EDGE_TYPES, isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '
 
 /** Vertical offset so parent-child lines start/end at the node circle edge */
 const NODE_RADIUS = 32;
+const CURVE_ENTRY_FACTOR = 0.45;
 const MAX_CUSTOM_BADGE_LABEL_LENGTH = 12;
 const truncateBadgeLabel = (label = '') => (
   label.length > MAX_CUSTOM_BADGE_LABEL_LENGTH
@@ -49,7 +50,7 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick, curveM
   } else if (isParentBundle) {
     // Couple-connector → child line (single branch)
     if (isCurved) {
-      const childEntryY = toNode.y - (NODE_RADIUS * 0.45);
+      const childEntryY = toNode.y - (NODE_RADIUS * CURVE_ENTRY_FACTOR);
       const controlY = fromNode.y + ((childEntryY - fromNode.y) * 0.45);
       d = `M ${fromNode.x} ${fromNode.y} C ${fromNode.x} ${controlY}, ${toNode.x} ${controlY}, ${toNode.x} ${childEntryY}`;
     } else {
@@ -63,7 +64,7 @@ export default function FamilyEdge({ edge, fromNode, toNode, onLineClick, curveM
     // Single-parent → child line
     if (isCurved) {
       const startY = fromNode.y;
-      const childEntryY = toNode.y - (NODE_RADIUS * 0.45);
+      const childEntryY = toNode.y - (NODE_RADIUS * CURVE_ENTRY_FACTOR);
       const controlY = startY + ((childEntryY - startY) * 0.5);
       d = `M ${fromNode.x} ${startY} C ${fromNode.x} ${controlY}, ${toNode.x} ${controlY}, ${toNode.x} ${childEntryY}`;
     } else {

@@ -1323,9 +1323,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
 
     setIsolatedGroupId(null);
     setHighlightedGroupId(null);
-    if (previousState.uiState && Object.prototype.hasOwnProperty.call(previousState.uiState, 'organizationMode')) {
-      setOrganizationMode(previousState.uiState.organizationMode || 'none');
-    }
+    setOrganizationMode(previousState.uiState?.organizationMode ?? 'none');
     saveAndUpdate(
       previousState.nodes,
       previousState.edges,
