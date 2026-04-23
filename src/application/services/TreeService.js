@@ -426,6 +426,152 @@ export class TreeService {
     }));
   }
 
+  organizeByBirthLevels(nodes, edges) {
+    const baseNodes = this.organizeByLevels(nodes, edges);
+    if (baseNodes.length === 0) return baseNodes;
+
+    const positionedById = new Map(baseNodes.map(node => [node.id, node]));
+    const siblingGroups = new Map();
+
+    edges.forEach((edge) => {
+      if (edge.type !== EDGE_TYPES.PARENT) return;
+      const group = siblingGroups.get(edge.to) || { parents: new Set(), childId: edge.to };
+      group.parents.add(edge.from);
+      siblingGroups.set(edge.to, group);
+    });
+
+    const groupedByParentKey = new Map();
+    siblingGroups.forEach((group) => {
+      const key = [...group.parents].sort().join('|') || `single:${group.childId}`;
+      if (!groupedByParentKey.has(key)) groupedByParentKey.set(key, []);
+      groupedByParentKey.get(key).push(group.childId);
+    });
+
+    const getBirthWeight = (node) => {
+      const birthDate = node?.data?.birthDate;
+      if (!birthDate) return Number.POSITIVE_INFINITY;
+      const timestamp = Date.parse(birthDate);
+      return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+    };
+
+    // 86px keeps sibling stacks compact while avoiding visual overlap with 64px node circles.
+    const SIBLING_VERTICAL_SPACING = 86;
+    const nextPositions = new Map(baseNodes.map(node => [node.id, { x: node.x, y: node.y }]));
+
+    groupedByParentKey.forEach((childIds) => {
+      if (childIds.length < 2) return;
+
+      const children = childIds
+        .map(id => positionedById.get(id))
+        .filter(Boolean)
+        .sort((a, b) => {
+          const byBirth = getBirthWeight(a) - getBirthWeight(b);
+          if (byBirth !== 0) return byBirth;
+          return (a.data?.firstName || '').localeCompare(b.data?.firstName || '');
+        });
+
+      const centerX = children.reduce((sum, child) => sum + child.x, 0) / children.length;
+      const centerY = children.reduce((sum, child) => sum + child.y, 0) / children.length;
+      const startY = centerY - ((children.length - 1) * SIBLING_VERTICAL_SPACING) / 2;
+
+      children.forEach((child, index) => {
+        nextPositions.set(child.id, {
+          x: centerX,
+          y: startY + (index * SIBLING_VERTICAL_SPACING),
+        });
+      });
+    });
+
+    return baseNodes.map((node) => ({
+      ...node,
+      x: nextPositions.get(node.id)?.x ?? node.x,
+      y: nextPositions.get(node.id)?.y ?? node.y,
+    }));
+  }
+
+  organizeAizado(nodes, edges) {
+    const baseNodes = this.organizeByBirthLevels(nodes, edges);
+    if (baseNodes.length === 0) return baseNodes;
+
+    const parentsByChild = new Map();
+    const childrenByParent = new Map();
+    baseNodes.forEach((node) => {
+      parentsByChild.set(node.id, new Set());
+      childrenByParent.set(node.id, new Set());
+    });
+
+    edges.forEach((edge) => {
+      if (edge.type !== EDGE_TYPES.PARENT) return;
+      if (parentsByChild.has(edge.to)) parentsByChild.get(edge.to).add(edge.from);
+      if (childrenByParent.has(edge.from)) childrenByParent.get(edge.from).add(edge.to);
+    });
+
+    const nodeMap = new Map(baseNodes.map(node => [node.id, node]));
+    const generations = new Map();
+    const queue = [];
+    baseNodes
+      .filter(node => (parentsByChild.get(node.id)?.size ?? 0) === 0)
+      .forEach((root) => {
+        generations.set(root.id, 0);
+        queue.push(root.id);
+      });
+
+    if (queue.length === 0 && baseNodes.length > 0) {
+      generations.set(baseNodes[0].id, 0);
+      queue.push(baseNodes[0].id);
+    }
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      const currentGeneration = generations.get(currentId) ?? 0;
+      [...(childrenByParent.get(currentId) || [])].forEach((childId) => {
+        const nextGeneration = currentGeneration + 1;
+        const existing = generations.get(childId);
+        if (existing === undefined || nextGeneration > existing) {
+          generations.set(childId, nextGeneration);
+          queue.push(childId);
+        }
+      });
+    }
+
+    const groupedByGeneration = new Map();
+    baseNodes.forEach((node) => {
+      const generation = generations.get(node.id) ?? 0;
+      if (!groupedByGeneration.has(generation)) groupedByGeneration.set(generation, []);
+      groupedByGeneration.get(generation).push(node.id);
+    });
+
+    // 180x200 leaves generous room for labels/links and future expand interactions.
+    const AIZADO_NODE_HORIZONTAL_SPACING = 180;
+    const AIZADO_GENERATION_VERTICAL_SPACING = 200;
+    const adjustedPositions = new Map();
+    const orderedGenerations = [...groupedByGeneration.keys()].sort((a, b) => a - b);
+
+    orderedGenerations.forEach((generation) => {
+      const ids = groupedByGeneration.get(generation) || [];
+      const sortedByCurrentX = ids
+        .map(id => nodeMap.get(id))
+        .filter(Boolean)
+        .sort((a, b) => a.x - b.x);
+
+      const generationCenterY = generation * AIZADO_GENERATION_VERTICAL_SPACING;
+      const startX = -((sortedByCurrentX.length - 1) * AIZADO_NODE_HORIZONTAL_SPACING) / 2;
+
+      sortedByCurrentX.forEach((node, index) => {
+        adjustedPositions.set(node.id, {
+          x: startX + (index * AIZADO_NODE_HORIZONTAL_SPACING),
+          y: generationCenterY,
+        });
+      });
+    });
+
+    return baseNodes.map((node) => ({
+      ...node,
+      x: adjustedPositions.get(node.id)?.x ?? node.x,
+      y: adjustedPositions.get(node.id)?.y ?? node.y,
+    }));
+  }
+
   linkNodes(edges, sourceId, targetId, linkType, linkLabel, customLinkTypes = []) {
     const newEdges = [...edges];
     let from = sourceId;
