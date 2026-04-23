@@ -69,6 +69,8 @@ export default function NodeActionsModal({
   const { calculateZodiac } = useZodiac();
   // Guard: prevent accidental taps on quick-action buttons right after the modal opens
   const readyRef = useRef(false);
+  // Guard: ignore residual touch/click events that may close the modal right after opening
+  const canCloseRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -78,6 +80,20 @@ export default function NodeActionsModal({
     }
     readyRef.current = false;
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      canCloseRef.current = false;
+      const timer = setTimeout(() => { canCloseRef.current = true; }, 220);
+      return () => clearTimeout(timer);
+    }
+    canCloseRef.current = false;
+  }, [isOpen]);
+
+  const handleSafeClose = () => {
+    if (!canCloseRef.current) return;
+    onClose();
+  };
 
   if (!isOpen || !node) return null;
 
@@ -184,7 +200,7 @@ export default function NodeActionsModal({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={onClose}
+      onClick={handleSafeClose}
     >
       <div
         className="bg-[#FFF8F0] w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]"
@@ -194,7 +210,7 @@ export default function NodeActionsModal({
         <div className="bg-orange-500 px-5 py-3 flex justify-between items-center text-white shrink-0">
           <h3 className="font-bold text-base uppercase tracking-wider">Acciones</h3>
           <button
-            onClick={onClose}
+            onClick={handleSafeClose}
             className="hover:bg-white/20 rounded-full p-1.5 transition-colors"
           >
             <X size={20} />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Target, Download, LogOut, Menu, X, Camera, Undo, Link as LinkIcon, Users, Sparkles } from 'lucide-react';
+import { Target, Download, LogOut, Menu, X, Camera, Undo, Link as LinkIcon, Users, Sparkles, Trees } from 'lucide-react';
 
 export default function CanvasHUD({
   username,
@@ -266,7 +266,20 @@ export default function CanvasHUD({
       </div>
 
       {/* Mobile center-view FAB – always visible */}
-      <div className="md:hidden absolute bottom-4 right-4 z-20 pointer-events-auto">
+      <div className="md:hidden absolute bottom-4 right-4 z-20 pointer-events-auto flex flex-col items-end gap-2">
+        <button
+          onClick={() => onChangeViewMode('relatives')}
+          className={`w-12 h-12 rounded-full shadow-lg border transition-all active:scale-95 flex items-center justify-center ${
+            viewMode === 'relatives'
+              ? 'bg-orange-500 text-white border-orange-500'
+              : 'bg-white text-gray-700 border-gray-100 hover:bg-orange-50'
+          }`}
+          title="Volver a vista Árbol"
+          aria-label="Volver a vista Árbol"
+        >
+          <Trees size={18} />
+        </button>
+
         <button
           onClick={onFitToScreen}
           className="w-12 h-12 bg-white hover:bg-orange-50 active:scale-95 rounded-full shadow-lg border border-gray-100 flex items-center justify-center transition-all"

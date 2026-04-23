@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Move, Link as LinkIcon, X, Eye, Pencil, GitBranch, ArrowUp, ArrowDown, Users, Venus, Mars, CircleDot, Search } from 'lucide-react';
+import { Move, Link as LinkIcon, X, Eye, Pencil, GitBranch, ArrowUp, ArrowDown, Users, Venus, Mars, CircleDot, Search, Trees, Globe } from 'lucide-react';
 import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../../domain/config/constants';
 import { generateId } from '../../../domain/entities/Node';
 import { useCanvas } from '../../../application/hooks/useCanvas';
@@ -21,12 +21,12 @@ import Input from '../common/Input';
 const GROUP_EMOJIS = ['👨‍👩‍👧', '👨‍👩‍👧‍👦', '👩‍👩‍👦', '👨‍👨‍👧', '🏡', '💞', '🌳', '💫', '🫶', '✨'];
 const GROUP_COLORS = ['#F97316', '#7C3AED', '#0891B2', '#16A34A', '#DC2626', '#EA580C', '#4F46E5', '#D946EF'];
 const LINEAGE_VIEW_MODES = [
-  { value: 'relatives', label: 'Mi árbol', shortLabel: 'Árbol', icon: Users },
+  { value: 'relatives', label: 'Mi árbol', shortLabel: 'Árbol', icon: Trees },
   { value: 'ancestors', label: 'Ancestros', shortLabel: 'Asc.', icon: ArrowUp },
   { value: 'descendants', label: 'Descendencia', shortLabel: 'Desc.', icon: ArrowDown },
   { value: 'lineage', label: 'Linaje', shortLabel: 'Linaje', icon: GitBranch },
   { value: 'radial', label: 'Vista radial', shortLabel: 'Radial', icon: CircleDot },
-  { value: 'all', label: 'Todo', shortLabel: 'Todo', icon: Users },
+  { value: 'all', label: 'Todo', shortLabel: 'Todo', icon: Globe },
 ];
 const FIT_TO_SCREEN_DELAY = 100;
 
