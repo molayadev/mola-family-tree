@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Target, Download, LogOut, Menu, X, Camera, Undo, Link as LinkIcon, Users, Sparkles, Trees } from 'lucide-react';
+import { Target, Download, LogOut, Menu, X, Camera, Undo, Link as LinkIcon, Users, Sparkles, Trees, Globe, Scan } from 'lucide-react';
 
 export default function CanvasHUD({
   username,
@@ -25,9 +25,16 @@ export default function CanvasHUD({
   onToggleEdgeCurveMode = () => {},
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileQuickActionsOpen, setMobileQuickActionsOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen(prev => !prev);
   const closeMenu = () => setMenuOpen(false);
+  const toggleMobileQuickActions = () => setMobileQuickActionsOpen(prev => !prev);
+  const closeMobileQuickActions = () => setMobileQuickActionsOpen(false);
+  const handleMobileQuickAction = (action) => {
+    closeMobileQuickActions();
+    action();
+  };
 
   const handleAction = (action) => {
     closeMenu();
@@ -265,28 +272,62 @@ export default function CanvasHUD({
         )}
       </div>
 
-      {/* Mobile center-view FAB – always visible */}
-      <div className="md:hidden absolute bottom-4 right-4 z-20 pointer-events-auto flex flex-col items-end gap-2">
+      {/* Mobile quick-actions FAB */}
+      <div
+        className="md:hidden absolute top-1/2 right-3 -translate-y-1/2 z-20 pointer-events-auto flex flex-col items-end gap-2"
+        style={{ right: 'max(0.75rem, env(safe-area-inset-right))' }}
+      >
+        {mobileQuickActionsOpen && (
+          <>
+            <button
+              onClick={() => handleMobileQuickAction(() => onChangeViewMode('all'))}
+              className={`w-12 h-12 rounded-full shadow-lg border transition-all active:scale-95 flex items-center justify-center ${
+                viewMode === 'all'
+                  ? 'bg-orange-500 text-white border-orange-500'
+                  : 'bg-white text-gray-700 border-gray-100 hover:bg-orange-50'
+              }`}
+              title="Volver a vista Todo"
+              aria-label="Volver a vista Todo"
+            >
+              <Globe size={18} />
+            </button>
+
+            <button
+              onClick={() => handleMobileQuickAction(() => onChangeViewMode('relatives'))}
+              className={`w-12 h-12 rounded-full shadow-lg border transition-all active:scale-95 flex items-center justify-center ${
+                viewMode === 'relatives'
+                  ? 'bg-orange-500 text-white border-orange-500'
+                  : 'bg-white text-gray-700 border-gray-100 hover:bg-orange-50'
+              }`}
+              title="Volver a vista Árbol"
+              aria-label="Volver a vista Árbol"
+            >
+              <Trees size={18} />
+            </button>
+
+            <button
+              onClick={() => handleMobileQuickAction(onFitToScreen)}
+              className="w-12 h-12 bg-white hover:bg-orange-50 active:scale-95 rounded-full shadow-lg border border-gray-100 flex items-center justify-center transition-all"
+              title="Centrar vista"
+              aria-label="Centrar vista"
+            >
+              <Target size={20} className="text-gray-700" />
+            </button>
+          </>
+        )}
+
         <button
-          onClick={() => onChangeViewMode('relatives')}
+          onClick={toggleMobileQuickActions}
           className={`w-12 h-12 rounded-full shadow-lg border transition-all active:scale-95 flex items-center justify-center ${
-            viewMode === 'relatives'
+            mobileQuickActionsOpen
               ? 'bg-orange-500 text-white border-orange-500'
               : 'bg-white text-gray-700 border-gray-100 hover:bg-orange-50'
           }`}
-          title="Volver a vista Árbol"
-          aria-label="Volver a vista Árbol"
+          title={mobileQuickActionsOpen ? 'Ocultar atajos' : 'Mostrar atajos'}
+          aria-label={mobileQuickActionsOpen ? 'Ocultar atajos' : 'Mostrar atajos'}
+          aria-expanded={mobileQuickActionsOpen}
         >
-          <Trees size={18} />
-        </button>
-
-        <button
-          onClick={onFitToScreen}
-          className="w-12 h-12 bg-white hover:bg-orange-50 active:scale-95 rounded-full shadow-lg border border-gray-100 flex items-center justify-center transition-all"
-          title="Centrar vista"
-          aria-label="Centrar vista"
-        >
-          <Target size={20} className="text-gray-700" />
+          <Scan size={18} />
         </button>
       </div>
     </>
