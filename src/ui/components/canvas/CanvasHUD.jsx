@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Target, Download, LogOut, Menu, X, Camera, Undo, Link as LinkIcon, Users, Sparkles, Trees, Globe, Scan } from 'lucide-react';
+import { Target, Download, LogOut, Menu, X, Camera, Undo, Link as LinkIcon, Users, Sparkles, Trees, Globe, Scan, FolderInput } from 'lucide-react';
 
 export default function CanvasHUD({
   username,
@@ -23,6 +23,8 @@ export default function CanvasHUD({
   canOrganize = false,
   edgeCurveMode = 'curved',
   onToggleEdgeCurveMode = () => {},
+  isFirebaseMode = false,
+  onImport = null,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileQuickActionsOpen, setMobileQuickActionsOpen] = useState(false);
@@ -119,6 +121,11 @@ export default function CanvasHUD({
           <button onClick={onExport} className="p-3 bg-white hover:bg-orange-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Exportar JSON">
             <Download size={20} className="text-gray-600" />
           </button>
+          {isFirebaseMode && onImport && (
+            <button onClick={onImport} className="p-3 bg-white hover:bg-blue-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Importar datos (JSON)">
+              <FolderInput size={20} className="text-blue-500" />
+            </button>
+          )}
           <button onClick={onLogout} className="p-3 bg-white hover:bg-red-50 rounded-xl shadow-sm border border-gray-100 transition-colors" title="Salir">
             <LogOut size={20} className="text-red-500" />
           </button>
@@ -247,6 +254,16 @@ export default function CanvasHUD({
                 <Download size={18} className="text-gray-600" />
                 <span className="text-sm text-gray-700">Exportar JSON</span>
               </button>
+
+              {isFirebaseMode && onImport && (
+                <button
+                  onClick={() => handleAction(onImport)}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-blue-50 active:bg-blue-100 transition-colors text-left"
+                >
+                  <FolderInput size={18} className="text-blue-500" />
+                  <span className="text-sm text-gray-700">Importar datos</span>
+                </button>
+              )}
 
               <div className="border-t border-gray-100 mt-1 pt-1">
                 <button
