@@ -91,6 +91,10 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = firebaseAuthService.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
+        // Guard: only load if we are not already in Firebase mode for this user.
+        // This prevents a double-load when signInWithGoogle() and onAuthStateChanged
+        // both fire on the same sign-in event.
+        if (usernameRef.current === firebaseUser.uid) return;
         await loadFirebaseUser(firebaseUser);
       } else {
         setAuthMode('local');
@@ -109,14 +113,15 @@ export default function App() {
   // ── Google Sign-in ──────────────────────────────────────────────────────────
   const handleGoogleSignIn = useCallback(async () => {
     try {
-      const firebaseUser = await firebaseAuthService.signInWithGoogle();
-      await loadFirebaseUser(firebaseUser);
+      // Just trigger the sign-in. The onAuthStateChanged listener handles
+      // the transition to the canvas, so we never call loadFirebaseUser twice.
+      await firebaseAuthService.signInWithGoogle();
     } catch (err) {
       if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         alert(`Error al iniciar sesión con Google: ${err.message}`);
       }
     }
-  }, [loadFirebaseUser]);
+  }, []);
 
   // ── Local login / register ─────────────────────────────────────────────────
   const handleLogin = useCallback((username, password) => {

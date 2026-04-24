@@ -193,13 +193,13 @@ Mismo bloque `env` en el paso de build.
 
 ## 8. Estructura de la base de datos Firestore
 
-Cada usuario tiene sus propias subcollections bajo `/users/{uid}/`. No se necesitan índices compuestos:
+Cada usuario tiene sus propias subcollections bajo `/users-family/{uid}/`. No se necesitan índices compuestos:
 
 ```
-/users/{uid}/
+/users-family/{uid}/
     uid: string
 
-/users/{uid}/nodes/{nodeId}
+/users-family/{uid}/nodes/{nodeId}
     id: string
     x: number
     y: number
@@ -208,7 +208,7 @@ Cada usuario tiene sus propias subcollections bajo `/users/{uid}/`. No se necesi
             twinType, birthOrder, birthLatitude, birthLongitude,
             additionalInfo }
 
-/users/{uid}/edges/{edgeId}
+/users-family/{uid}/edges/{edgeId}
     id: string
     from: string
     to: string
@@ -218,13 +218,13 @@ Cada usuario tiene sus propias subcollections bajo `/users/{uid}/`. No se necesi
     styleMode: string
     styleColor: string
 
-/users/{uid}/customLinkTypes/{linkTypeId}
+/users-family/{uid}/customLinkTypes/{linkTypeId}
     id: string
     name: string
     visualType: string
     color: string
 
-/users/{uid}/familyGroups/{groupId}
+/users-family/{uid}/familyGroups/{groupId}
     id: string
     label: string
     emoji: string
@@ -245,7 +245,7 @@ El archivo `firestore.rules` en la raíz del repositorio garantiza que cada usua
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid}/{document=**} {
+    match /users-family/{uid}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
   }

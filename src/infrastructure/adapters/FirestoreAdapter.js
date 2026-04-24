@@ -30,11 +30,11 @@ export class FirestoreAdapter extends StoragePort {
   }
 
   #userRef() {
-    return doc(db, 'users', this.uid);
+    return doc(db, 'users-family', this.uid);
   }
 
   #subCol(name) {
-    return collection(db, 'users', this.uid, name);
+    return collection(db, 'users-family', this.uid, name);
   }
 
   async getUserData() {
@@ -101,7 +101,7 @@ export class FirestoreAdapter extends StoragePort {
     // Upsert current items
     const upsert = (subName, items) => {
       items.forEach((item) => {
-        const ref = doc(db, 'users', this.uid, subName, item.id);
+        const ref = doc(db, 'users-family', this.uid, subName, item.id);
         ops.push((batch) => batch.set(ref, item));
       });
     };
