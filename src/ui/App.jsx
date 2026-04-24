@@ -46,16 +46,22 @@ export default function App() {
     setTreeService(fbTreeService);
     setExportService(fbExportService);
 
+    const displayName = firebaseUser.displayName || firebaseUser.email || firebaseUser.uid;
+    usernameRef.current = firebaseUser.uid;
+    setCurrentUser({ username: displayName, uid: firebaseUser.uid });
+
+    // Navigate to canvas immediately so the user is not blocked by a full-page spinner.
+    // The tree data will be filled in once the Firestore fetch completes below.
+    setAuthMode('firebase');
+    setFirebaseLoading(false);
+    setView('canvas');
+
     const userData = await firestoreAdapter.getUserData();
     const loadedNodes = (userData.treeData.nodes || []).map(ExportImportService.migrateNodeData);
     const loadedEdges = userData.treeData.edges || [];
     const loadedCustomLinkTypes = ExportImportService.migrateCustomLinkTypes(userData.treeData.customLinkTypes || []);
     const loadedFamilyGroups = ExportImportService.migrateFamilyGroups(userData.treeData.familyGroups || []);
 
-    const displayName = firebaseUser.displayName || firebaseUser.email || firebaseUser.uid;
-    usernameRef.current = firebaseUser.uid;
-
-    setCurrentUser({ username: displayName, uid: firebaseUser.uid });
     setNodes(loadedNodes);
     setEdges(loadedEdges);
     setCustomLinkTypes(loadedCustomLinkTypes);
@@ -78,10 +84,6 @@ export default function App() {
         familyGroups: loadedFamilyGroups,
       };
     }
-
-    setAuthMode('firebase');
-    setFirebaseLoading(false);
-    setView('canvas');
   // State setters and refs are stable; no external deps needed
   }, []);
 
@@ -202,13 +204,34 @@ export default function App() {
   }, [exportService, refreshHasUsers]);
 
   // ── Import into Firestore (firebase mode, from canvas) ─────────────────────
-  const handleFirebaseImport = useCallback(async (file) => {
-    return exportService.importTree(file);
+  const handleFirebaseImportFromText = useCallback(async (rawJson) => {
+    // Parse and validate first so we can update state immediately after saving
+    const parsed = ExportImportService.parseImportData(rawJson);
+    // Save the imported data to Firestore
+    await exportService.importTreeFromText(rawJson);
+    // Update React state so the canvas reflects the imported tree right away
+    setNodes(parsed.nodes);
+    setEdges(parsed.edges);
+    setCustomLinkTypes(parsed.customLinkTypes);
+    setFamilyGroups(parsed.familyGroups);
+    latestTreeRef.current = {
+      nodes: parsed.nodes,
+      edges: parsed.edges,
+      customLinkTypes: parsed.customLinkTypes,
+      familyGroups: parsed.familyGroups,
+    };
+    return parsed.user;
   }, [exportService]);
 
-  const handleFirebaseImportFromText = useCallback(async (rawJson) => {
-    return exportService.importTreeFromText(rawJson);
-  }, [exportService]);
+  const handleFirebaseImport = useCallback(async (file) => {
+    const rawJson = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Error al leer el archivo JSON.'));
+      reader.readAsText(file);
+    });
+    return handleFirebaseImportFromText(rawJson);
+  }, [handleFirebaseImportFromText]);
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = useCallback((newNodes, newEdges, newCustomLinkTypes = customLinkTypes, newFamilyGroups = familyGroups) => {
