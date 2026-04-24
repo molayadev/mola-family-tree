@@ -25,7 +25,7 @@ describe('VIEW_MODE_STRATEGIES', () => {
     Object.values(VIEW_MODE_STRATEGIES).forEach(strategy => {
       expect(strategy).toHaveProperty('value');
       expect(strategy).toHaveProperty('label');
-      expect(strategy).toHaveProperty('icon');
+      expect(strategy).toHaveProperty('iconName');
       expect(typeof strategy.showPartners).toBe('boolean');
       expect(typeof strategy.showControls).toBe('boolean');
       expect(typeof strategy.usesColumnPositions).toBe('boolean');

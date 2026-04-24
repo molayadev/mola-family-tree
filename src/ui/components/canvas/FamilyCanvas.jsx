@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Move, Pencil } from 'lucide-react';
 import { isPartnerEdgeType, isBrokenLabel, resolveEdgeLabel } from '../../../domain/config/constants';
-import { VIEW_MODE_OPTIONS, modeAllowsOrganize } from '../../../domain/config/viewModeStrategies';
+import { modeAllowsOrganize } from '../../../domain/config/viewModeStrategies';
+import { VIEW_MODE_OPTIONS_WITH_ICONS } from '../../config/viewModeIcons';
 import { normalizeFamilyGroups, computeHiddenNodeIds, buildAutoFamilyGroups, normalizeGroupColor, randomGroupEmoji } from '../../../domain/utils/groupUtils';
 import { buildLineageVisibility, buildLineageColumnPositions, buildNodeParentControls } from '../../../domain/utils/lineageUtils';
 import { buildFanSlots, buildRadialPositions } from '../../../domain/utils/fanUtils';
@@ -100,11 +101,6 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
   const lineageVisibility = useMemo(
     () => buildLineageVisibility(nodes, edges, focusNodeId, parentChoiceByChildId, lineageViewMode, relativesBranchMode),
     [nodes, edges, focusNodeId, parentChoiceByChildId, lineageViewMode, relativesBranchMode],
-  );
-
-  const hiddenNodeIds = useMemo(
-    () => computeHiddenNodeIds(nodes, normalizedFamilyGroups, null),
-    [nodes, normalizedFamilyGroups],
   );
 
   const canUseOrganize = modeAllowsOrganize(lineageViewMode);
@@ -1196,7 +1192,7 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         canUndo={canUndo}
         viewMode={lineageViewMode}
         onChangeViewMode={handleViewModeChange}
-        viewModeOptions={VIEW_MODE_OPTIONS}
+        viewModeOptions={VIEW_MODE_OPTIONS_WITH_ICONS}
         focusedNodeName={focusedNode ? `${focusedNode.data.firstName} ${focusedNode.data.lastName}`.trim() : ''}
         canOrganize={canUseOrganize}
         edgeCurveMode={edgeCurveMode}

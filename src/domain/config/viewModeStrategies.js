@@ -1,5 +1,3 @@
-import { ArrowUp, ArrowDown, GitBranch, CircleDot, Trees, Globe } from 'lucide-react';
-
 /**
  * VIEW_MODE_STRATEGIES
  *
@@ -7,11 +5,15 @@ import { ArrowUp, ArrowDown, GitBranch, CircleDot, Trees, Globe } from 'lucide-r
  * Instead of scattering `if (lineageViewMode === 'xxx')` checks across the
  * codebase, handlers and metadata are co-located here.
  *
+ * Icon components are intentionally NOT imported here to keep the domain layer
+ * free of UI dependencies. Use VIEW_MODE_ICON_MAP in the presentation layer
+ * to resolve iconName → icon component.
+ *
  * Shape per strategy:
  *   value        – the internal string key used in state
  *   label        – human-readable full label (shown in tooltips / menu)
  *   shortLabel   – abbreviated label for compact buttons
- *   icon         – Lucide icon component
+ *   iconName     – string key resolved by the UI layer (VIEW_MODE_ICON_MAP)
  *   showPartners – whether partner nodes are shown for the focus node
  *   showControls – whether the tree-controls overlay is rendered
  *   usesColumnPositions  – whether lineage column layout is applied
@@ -23,7 +25,7 @@ export const VIEW_MODE_STRATEGIES = {
     value: 'relatives',
     label: 'Mi árbol',
     shortLabel: 'Árbol',
-    icon: Trees,
+    iconName: 'Trees',
     showPartners: true,
     showControls: true,
     usesColumnPositions: false,
@@ -34,7 +36,7 @@ export const VIEW_MODE_STRATEGIES = {
     value: 'ancestors',
     label: 'Ancestros',
     shortLabel: 'Asc.',
-    icon: ArrowUp,
+    iconName: 'ArrowUp',
     showPartners: true,
     showControls: false,
     usesColumnPositions: false,
@@ -45,7 +47,7 @@ export const VIEW_MODE_STRATEGIES = {
     value: 'descendants',
     label: 'Descendencia',
     shortLabel: 'Desc.',
-    icon: ArrowDown,
+    iconName: 'ArrowDown',
     showPartners: true,
     showControls: false,
     usesColumnPositions: false,
@@ -56,7 +58,7 @@ export const VIEW_MODE_STRATEGIES = {
     value: 'lineage',
     label: 'Linaje',
     shortLabel: 'Linaje',
-    icon: GitBranch,
+    iconName: 'GitBranch',
     showPartners: false,
     showControls: true,
     usesColumnPositions: true,
@@ -67,7 +69,7 @@ export const VIEW_MODE_STRATEGIES = {
     value: 'radial',
     label: 'Vista radial',
     shortLabel: 'Radial',
-    icon: CircleDot,
+    iconName: 'CircleDot',
     showPartners: false,
     showControls: false,
     usesColumnPositions: false,
@@ -78,7 +80,7 @@ export const VIEW_MODE_STRATEGIES = {
     value: 'all',
     label: 'Todo',
     shortLabel: 'Todo',
-    icon: Globe,
+    iconName: 'Globe',
     showPartners: true,
     showControls: true,
     usesColumnPositions: false,

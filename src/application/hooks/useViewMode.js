@@ -79,7 +79,7 @@ export function useViewMode({ nodes, edges, focusNodeId, selectedNodeId, setFocu
     parentChoiceByChildId,
     setFocusNodeId,
     setSelectedNodeId,
-    setRelativesBranchMode,
+    setRelativesBranchModeState,
     setParentChoiceByChildId,
     setOrganizeModalOpen,
   ]);
