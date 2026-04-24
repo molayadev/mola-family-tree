@@ -6,6 +6,11 @@ import { version } from './package.json'
 
 // https://vite.dev/config/
 export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './src/test/setup.js',
+  },
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },
