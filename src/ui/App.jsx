@@ -1,5 +1,8 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { LocalStorageAdapter } from '../infrastructure/adapters/LocalStorageAdapter';
+import { FirestoreAdapter } from '../infrastructure/adapters/FirestoreAdapter';
+import { FirebaseAuthAdapter } from '../infrastructure/adapters/FirebaseAuthAdapter';
+import { FirebaseAuthService } from '../application/services/FirebaseAuthService';
 import { AuthService } from '../application/services/AuthService';
 import { TreeService } from '../application/services/TreeService';
 import { ExportImportService } from '../application/services/ExportImportService';
@@ -9,13 +12,17 @@ import LandingPage from './components/auth/LandingPage';
 import AuthForm from './components/auth/AuthForm';
 import FamilyCanvas from './components/canvas/FamilyCanvas';
 
-// Wire up adapters (swap LocalStorageAdapter for FirestoreAdapter, etc.)
-const storageAdapter = new LocalStorageAdapter();
+// Local storage adapter (always present for local-mode users)
+const localStorageAdapter = new LocalStorageAdapter();
+const firebaseAuthService = new FirebaseAuthService(new FirebaseAuthAdapter());
 
 export default function App() {
-  const authService = useMemo(() => new AuthService(storageAdapter), []);
-  const treeService = useMemo(() => new TreeService(storageAdapter), []);
-  const exportService = useMemo(() => new ExportImportService(storageAdapter), []);
+  // ── Auth mode: 'local' | 'firebase' ────────────────────────────────────────
+  const [authMode, setAuthMode] = useState(null); // null = unknown (checking Firebase session)
+
+  const authService = useMemo(() => new AuthService(localStorageAdapter), []);
+  const [treeService, setTreeService] = useState(() => new TreeService(localStorageAdapter));
+  const [exportService, setExportService] = useState(() => new ExportImportService(localStorageAdapter));
   const undoService = useMemo(() => new UndoService(), []);
 
   const [view, setView] = useState('landing');
@@ -25,14 +32,98 @@ export default function App() {
   const [edges, setEdges] = useState([]);
   const [customLinkTypes, setCustomLinkTypes] = useState([]);
   const [familyGroups, setFamilyGroups] = useState([]);
+  const [firebaseLoading, setFirebaseLoading] = useState(true);
 
   const usernameRef = useRef(null);
   const latestTreeRef = useRef({ nodes: [], edges: [], customLinkTypes: [], familyGroups: [] });
+
+  // ── Helper: bootstrap Firebase user into the canvas ────────────────────────
+  const loadFirebaseUser = useCallback(async (firebaseUser) => {
+    const firestoreAdapter = new FirestoreAdapter(firebaseUser.uid);
+    const fbTreeService = new TreeService(firestoreAdapter);
+    const fbExportService = new ExportImportService(firestoreAdapter);
+
+    setTreeService(fbTreeService);
+    setExportService(fbExportService);
+
+    const displayName = firebaseUser.displayName || firebaseUser.email || firebaseUser.uid;
+    usernameRef.current = firebaseUser.uid;
+    setCurrentUser({ username: displayName, uid: firebaseUser.uid });
+
+    // Navigate to canvas immediately so the user is not blocked by a full-page spinner.
+    // The tree data will be filled in once the Firestore fetch completes below.
+    setAuthMode('firebase');
+    setFirebaseLoading(false);
+    setView('canvas');
+
+    const userData = await firestoreAdapter.getUserData();
+    const loadedNodes = (userData.treeData.nodes || []).map(ExportImportService.migrateNodeData);
+    const loadedEdges = userData.treeData.edges || [];
+    const loadedCustomLinkTypes = ExportImportService.migrateCustomLinkTypes(userData.treeData.customLinkTypes || []);
+    const loadedFamilyGroups = ExportImportService.migrateFamilyGroups(userData.treeData.familyGroups || []);
+
+    setNodes(loadedNodes);
+    setEdges(loadedEdges);
+    setCustomLinkTypes(loadedCustomLinkTypes);
+    setFamilyGroups(loadedFamilyGroups);
+    latestTreeRef.current = {
+      nodes: loadedNodes,
+      edges: loadedEdges,
+      customLinkTypes: loadedCustomLinkTypes,
+      familyGroups: loadedFamilyGroups,
+    };
+
+    if (loadedNodes.length === 0) {
+      const initialNode = createNode({ id: 'root', x: 0, y: 0, firstName: 'Yo', gender: 'unknown' });
+      await fbTreeService.save(firebaseUser.uid, [initialNode], [], loadedCustomLinkTypes, loadedFamilyGroups);
+      setNodes([initialNode]);
+      latestTreeRef.current = {
+        nodes: [initialNode],
+        edges: [],
+        customLinkTypes: loadedCustomLinkTypes,
+        familyGroups: loadedFamilyGroups,
+      };
+    }
+  // State setters and refs are stable; no external deps needed
+  }, []);
+
+  // ── Listen for persistent Firebase session on mount ────────────────────────
+  useEffect(() => {
+    const unsubscribe = firebaseAuthService.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        // Guard: only load if we are not already in Firebase mode for this user.
+        // This prevents a double-load when signInWithGoogle() and onAuthStateChanged
+        // both fire on the same sign-in event.
+        if (usernameRef.current === firebaseUser.uid) return;
+        await loadFirebaseUser(firebaseUser);
+      } else {
+        setAuthMode('local');
+        setFirebaseLoading(false);
+      }
+    });
+    return unsubscribe;
+  // loadFirebaseUser is stable (empty deps useCallback)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const refreshHasUsers = useCallback(() => {
     setHasLocalUsersFlag(authService.hasUsers());
   }, [authService]);
 
+  // ── Google Sign-in ──────────────────────────────────────────────────────────
+  const handleGoogleSignIn = useCallback(async () => {
+    try {
+      // Just trigger the sign-in. The onAuthStateChanged listener handles
+      // the transition to the canvas, so we never call loadFirebaseUser twice.
+      await firebaseAuthService.signInWithGoogle();
+    } catch (err) {
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+        alert(`Error al iniciar sesión con Google: ${err.message}`);
+      }
+    }
+  }, []);
+
+  // ── Local login / register ─────────────────────────────────────────────────
   const handleLogin = useCallback((username, password) => {
     const result = authService.login(username, password);
     if (result.success) {
@@ -53,6 +144,7 @@ export default function App() {
         customLinkTypes: loadedCustomLinkTypes,
         familyGroups: loadedFamilyGroups,
       };
+      setAuthMode('local');
       setView('canvas');
 
       if (loadedNodes.length === 0) {
@@ -88,12 +180,14 @@ export default function App() {
         familyGroups: result.treeData.familyGroups || [],
       };
       refreshHasUsers();
+      setAuthMode('local');
       setView('canvas');
       return { success: true };
     }
     return { error: result.error };
   }, [authService, refreshHasUsers]);
 
+  // ── Import (local landing page) ────────────────────────────────────────────
   const handleImport = useCallback(async (file) => {
     try {
       const importedUser = await exportService.importTree(file);
@@ -114,6 +208,37 @@ export default function App() {
     }
   }, [exportService, refreshHasUsers]);
 
+  // ── Import into Firestore (firebase mode, from canvas) ─────────────────────
+  const handleFirebaseImportFromText = useCallback(async (rawJson) => {
+    // Parse and validate first so we can update state immediately after saving
+    const parsed = ExportImportService.parseImportData(rawJson);
+    // Save the imported data to Firestore
+    await exportService.importTreeFromText(rawJson);
+    // Update React state so the canvas reflects the imported tree right away
+    setNodes(parsed.nodes);
+    setEdges(parsed.edges);
+    setCustomLinkTypes(parsed.customLinkTypes);
+    setFamilyGroups(parsed.familyGroups);
+    latestTreeRef.current = {
+      nodes: parsed.nodes,
+      edges: parsed.edges,
+      customLinkTypes: parsed.customLinkTypes,
+      familyGroups: parsed.familyGroups,
+    };
+    return parsed.user;
+  }, [exportService]);
+
+  const handleFirebaseImport = useCallback(async (file) => {
+    const rawJson = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Error al leer el archivo JSON.'));
+      reader.readAsText(file);
+    });
+    return handleFirebaseImportFromText(rawJson);
+  }, [handleFirebaseImportFromText]);
+
+  // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = useCallback((newNodes, newEdges, newCustomLinkTypes = customLinkTypes, newFamilyGroups = familyGroups) => {
     latestTreeRef.current = {
       nodes: newNodes,
@@ -132,7 +257,8 @@ export default function App() {
     treeService.save(username, newNodes, newEdges, newCustomLinkTypes, newFamilyGroups);
   }, [currentUser, treeService, customLinkTypes, familyGroups]);
 
-  const handleLogout = useCallback(() => {
+  // ── Logout ─────────────────────────────────────────────────────────────────
+  const handleLogout = useCallback(async () => {
     const username = usernameRef.current || currentUser?.username;
     if (username) {
       const latestTree = latestTreeRef.current;
@@ -145,6 +271,18 @@ export default function App() {
       );
     }
 
+    if (authMode === 'firebase') {
+      try {
+        await firebaseAuthService.signOut();
+      } catch {
+        // ignore sign-out errors
+      }
+    }
+
+    // Reset local tree state
+    setTreeService(new TreeService(localStorageAdapter));
+    setExportService(new ExportImportService(localStorageAdapter));
+    setAuthMode('local');
     setView('landing');
     setCurrentUser(null);
     usernameRef.current = null;
@@ -153,7 +291,19 @@ export default function App() {
     setCustomLinkTypes([]);
     setFamilyGroups([]);
     latestTreeRef.current = { nodes: [], edges: [], customLinkTypes: [], familyGroups: [] };
-  }, []);
+  }, [authMode, currentUser, treeService]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  if (firebaseLoading) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-300 border-t-orange-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-500 text-sm">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'landing') {
     return (
@@ -163,6 +313,7 @@ export default function App() {
           onImport={handleImport}
           onImportFromText={handleImportFromText}
           hasLocalUsers={hasLocalUsersFlag}
+          onGoogleSignIn={handleGoogleSignIn}
         />
       );
   }
@@ -187,6 +338,9 @@ export default function App() {
       undoService={undoService}
       onSave={handleSave}
       onLogout={handleLogout}
+      isFirebaseMode={authMode === 'firebase'}
+      onFirebaseImport={authMode === 'firebase' ? handleFirebaseImport : null}
+      onFirebaseImportFromText={authMode === 'firebase' ? handleFirebaseImportFromText : null}
     />
   );
 }

@@ -32,14 +32,17 @@ import LinkTypesManagerModal from '../modals/LinkTypesManagerModal';
 import FamilyGroupsModal from '../modals/FamilyGroupsModal';
 import OrganizeTreeModal from '../modals/OrganizeTreeModal';
 
+import ImportJsonModal from '../modals/ImportJsonModal';
+
 const FIT_TO_SCREEN_DELAY = 100;
 
-export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, familyGroups, treeService, exportService, undoService, onSave, onLogout }) {
+export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, familyGroups, treeService, exportService, undoService, onSave, onLogout, isFirebaseMode = false, onFirebaseImport = null, onFirebaseImportFromText = null }) {
   // ── Modal state ────────────────────────────────────────────────────────────
   const [actionsModal, setActionsModal] = useState({ isOpen: false, nodeId: null, initialTab: null, expandedEdgeId: null });
   const [actionsModalKey, setActionsModalKey] = useState(0);
   const [linkTypesModalOpen, setLinkTypesModalOpen] = useState(false);
   const [organizeModalOpen, setOrganizeModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   // ── Focus / selection state ────────────────────────────────────────────────
   const [focusNodeId, setFocusNodeId] = useState(() => nodes[0]?.id || null);
@@ -941,6 +944,26 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
     exportService.exportTree(username, nodes, edges, customLinkTypes, normalizedFamilyGroups);
   }, [username, nodes, edges, customLinkTypes, normalizedFamilyGroups, exportService]);
 
+  const handleFirebaseImport = useCallback(async (file) => {
+    if (!onFirebaseImport) return;
+    try {
+      const importedUser = await onFirebaseImport(file);
+      alert(`¡Árbol de ${importedUser} importado con éxito!`);
+    } catch (err) {
+      alert(err.message);
+    }
+  }, [onFirebaseImport]);
+
+  const handleFirebaseImportFromText = useCallback(async (rawJson) => {
+    if (!onFirebaseImportFromText) return;
+    try {
+      const importedUser = await onFirebaseImportFromText(rawJson);
+      alert(`¡Árbol de ${importedUser} importado con éxito!`);
+    } catch (err) {
+      alert(err.message);
+    }
+  }, [onFirebaseImportFromText]);
+
   const handleSnapshot = useCallback(() => {
     downloadTreeSnapshot(username, nodes, edges);
   }, [username, nodes, edges]);
@@ -1197,6 +1220,8 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         canOrganize={canUseOrganize}
         edgeCurveMode={edgeCurveMode}
         onToggleEdgeCurveMode={() => setEdgeCurveMode(prev => (prev === 'curved' ? 'geometric' : 'curved'))}
+        isFirebaseMode={isFirebaseMode}
+        onImport={isFirebaseMode ? () => setImportModalOpen(true) : null}
       />
 
       <ZoomControls onZoomIn={zoomIn} onZoomOut={zoomOut} />
@@ -1271,6 +1296,15 @@ export default function FamilyCanvas({ username, nodes, edges, customLinkTypes, 
         onUndo={handleUndo}
         canUndo={canUndo}
       />
+
+      {isFirebaseMode && (
+        <ImportJsonModal
+          isOpen={importModalOpen}
+          onClose={() => setImportModalOpen(false)}
+          onImport={handleFirebaseImport}
+          onImportFromText={handleFirebaseImportFromText}
+        />
+      )}
 
       {linkingMode && !linkTarget && (
         <LinkingModeBanner onCancel={cancelLinkingMode} />

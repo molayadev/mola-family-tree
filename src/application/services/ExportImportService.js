@@ -7,7 +7,12 @@ export class ExportImportService {
     return Object.prototype.hasOwnProperty.call(obj, key);
   }
 
-  parseAndImportJson(rawJson) {
+  /**
+   * Parse, validate and migrate a JSON backup string without saving it.
+   * Returns { user, password, nodes, edges, customLinkTypes, familyGroups }.
+   * Throws if the JSON is malformed or missing required keys.
+   */
+  static parseImportData(rawJson) {
     try {
       const json = JSON.parse(rawJson);
       const hasRequiredKeys = json &&
@@ -19,18 +24,33 @@ export class ExportImportService {
         throw new Error('El archivo no tiene el formato correcto.');
       }
 
-      const migratedNodes = json.nodes.map(ExportImportService.migrateNodeData);
-      const migratedEdges = json.edges.map(ExportImportService.migrateEdgeData);
-      const migratedCustomLinkTypes = ExportImportService.migrateCustomLinkTypes(json.customLinkTypes || []);
-      const migratedFamilyGroups = ExportImportService.migrateFamilyGroups(json.familyGroups || []);
-      this.storage.importUserData(String(json.user ?? ''), String(json.password ?? ''), migratedNodes, migratedEdges, migratedCustomLinkTypes, migratedFamilyGroups);
-      return json.user;
+      return {
+        user: json.user,
+        password: json.password,
+        nodes: json.nodes.map(ExportImportService.migrateNodeData),
+        edges: json.edges.map(ExportImportService.migrateEdgeData),
+        customLinkTypes: ExportImportService.migrateCustomLinkTypes(json.customLinkTypes || []),
+        familyGroups: ExportImportService.migrateFamilyGroups(json.familyGroups || []),
+      };
     } catch (error) {
       if (error.message === 'El archivo no tiene el formato correcto.') {
         throw error;
       }
       throw new Error('Error al leer el archivo JSON.');
     }
+  }
+
+  parseAndImportJson(rawJson) {
+    const parsed = ExportImportService.parseImportData(rawJson);
+    this.storage.importUserData(
+      String(parsed.user ?? ''),
+      String(parsed.password ?? ''),
+      parsed.nodes,
+      parsed.edges,
+      parsed.customLinkTypes,
+      parsed.familyGroups,
+    );
+    return parsed.user;
   }
 
   exportTree(username, nodes, edges, customLinkTypes = [], familyGroups = []) {
